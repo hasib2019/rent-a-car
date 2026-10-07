@@ -84,7 +84,12 @@ class PaperTile extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(paper.type.label(s), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
               Text(
-                [if (showVehicle && v != null) v.name, f.date(paper.expiry)].join(' · '),
+                [
+                  if (showVehicle && v != null) v.name,
+                  f.date(paper.expiry),
+                  if (paper.docNo?.isNotEmpty ?? false) paper.docNo!,
+                  if (paper.provider?.isNotEmpty ?? false) paper.provider!,
+                ].join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: p.muted, fontSize: 12.5),
@@ -119,6 +124,8 @@ class _PaperSheetState extends State<_PaperSheet> {
   late PaperType _type = widget.paper?.type ?? PaperType.taxToken;
   late int? _vehicleId = widget.paper?.vehicleId ?? widget.vehicleId;
   late DateTime? _expiry = widget.paper?.expiry;
+  late final _docNo = TextEditingController(text: widget.paper?.docNo);
+  late final _provider = TextEditingController(text: widget.paper?.provider);
 
   @override
   void initState() {
@@ -127,10 +134,26 @@ class _PaperSheetState extends State<_PaperSheet> {
     _vehicleId ??= app.vehicles.isEmpty ? null : app.vehicles.first.id;
   }
 
+  @override
+  void dispose() {
+    _docNo.dispose();
+    _provider.dispose();
+    super.dispose();
+  }
+
   Future<void> _save() async {
     if (_vehicleId == null || _expiry == null) return;
     final app = context.read<AppState>();
-    await app.mutate((r) => r.savePaper(Paper(id: widget.paper?.id, vehicleId: _vehicleId!, type: _type, expiry: _expiry!)));
+    String? text(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+    await app.mutate((r) => r.savePaper(Paper(
+          id: widget.paper?.id,
+          vehicleId: _vehicleId!,
+          type: _type,
+          expiry: _expiry!,
+          note: widget.paper?.note,
+          docNo: text(_docNo),
+          provider: text(_provider),
+        )));
     if (mounted) Navigator.pop(context);
   }
 
@@ -144,7 +167,7 @@ class _PaperSheetState extends State<_PaperSheet> {
       child: SafeArea(
         child: Contained(
           maxWidth: 560,
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.paper == null ? s.addPaper : s.papers, style: context.text.titleLarge),
@@ -165,6 +188,17 @@ class _PaperSheetState extends State<_PaperSheet> {
               ]),
               const SizedBox(height: 16),
               DateFormField(label: s.expiryDate, value: _expiry, onPick: (d) => setState(() => _expiry = d)),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: TextField(controller: _docNo, decoration: InputDecoration(labelText: s.docNo, prefixIcon: const Icon(Icons.numbers_rounded)))),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _provider,
+                    decoration: InputDecoration(labelText: s.provider, hintText: s.providerHint, prefixIcon: const Icon(Icons.apartment_rounded)),
+                  ),
+                ),
+              ]),
               const SizedBox(height: 20),
               Row(children: [
                 if (widget.paper != null) ...[

@@ -9,6 +9,13 @@ Built with Flutter for Android, iOS, web, macOS, Windows and Linux. Data lives i
 | | |
 |---|---|
 | **Daily collection** | One screen for every active vehicle. Tap *Full* or *Off*, or type a partial amount. Any shortfall goes into the driver's due automatically. |
+| **Trips** | Which vehicle went where (from → to), the dates, the fare, and every road cost with the place it was spent: fuel, engine oil (mobil), tolls/bridges/ferries, road costs, food/lodging, driver allowance, commission, loading. Shows profit per trip, distance and cost per km. Fares and costs flow into the ledger and reports. |
+| **Trip business** | Status (booked, on the road, completed, cancelled), client name and phone, cargo, challan/booking number, and payments from the client: advance and later instalments by cash, bKash, Nagad, bank or cheque. Only trips on the road or completed count as income. |
+| **Client ledger** | Every client across all trips: trips done, total fare, received, still owed. Names typed slightly differently are grouped, and the phone number fills in when a known client is picked again. |
+| **Garage visits (job card)** | One record per visit to a garage or service centre: date, odometer, workshop, mechanic, job card no., labour charge and every part fitted, each with brand, quantity, price, the shop it was bought from, warranty end date and when to change it next. |
+| **Service book** | Visits are marked official service centre or local garage, with a title such as "2nd free service". A visit can set the next general service by date and/or km, which is then tracked and alerted. |
+| **Parts & maintenance** | Monthly upkeep spend (servicing, parts, oil, tyres, repairs) with a 6-month trend, the month's garage visits, and what is fitted on each vehicle now. Parts and services that are overdue or due soon show on the dashboard. |
+| **Vehicle & driver records** | Chassis and engine numbers, colour, model year, fuel type and capacity per vehicle; driving licence number and expiry per driver (with an alert); document number and issuing office for each paper. |
 | **Fast entry** | A custom number pad for fuel (litres/m³ and odometer), repairs and costs (12 categories), trip/hire income and due recovery. Physical keyboards work too. |
 | **Per-vehicle profit** | Income − expense per vehicle, average daily income, mileage (km per unit), a 6-month trend and a cost breakdown. |
 | **Payback tracker** | Shows how much of the purchase price the vehicle has earned back, and how much is left. |
@@ -45,13 +52,19 @@ web/           sqlite3.wasm + sqflite_sw.js (SQLite in the browser, stored in In
 
 ### Data model (SQLite)
 
-* `vehicles`: type, reg no, purchase price/date, daily target, assigned driver, status
-* `drivers`: phone, NID, licence, opening due
+* `vehicles`: type, reg no, purchase price/date, daily target, assigned driver, status, chassis/engine no., colour, year, fuel, capacity
+* `drivers`: phone, NID, licence no. and expiry, opening due
 * `incomes`: `kind` is `joma` (daily, has target), `trip`, `due` (recovery) or `off` (vehicle didn't run)
-* `expenses`: category, amount, optional quantity and odometer (fuel)
-* `papers`: vehicle paper type and expiry date
+* `expenses`: category, amount, optional quantity and odometer (fuel), place
+* `papers`: vehicle paper type, expiry date, document number, issuing office
+* `trips`: vehicle, driver, origin, destination, dates, status, client and phone, cargo, challan no., fare, start/end odometer. While the trip is on the road or completed, the fare is mirrored as a `trip` income; road costs are `expenses` rows with a `place`; all are linked by `trip_id`.
+* `trip_payments`: what the client paid against a trip (date, amount, method). Client due = fare − payments.
+* `service_visits`: garage/service-centre job card (date, odometer, official or local, workshop, mechanic, job no., title, labour, next service date/km). Labour is an `expenses` row linked by `visit_id`.
+* `parts`: part type, brand, quantity, cost, shop, warranty, fitting date and odometer, next change date/km, optional `visit_id`. The cost is an `expenses` row linked by `part_id`. The newest fitting per vehicle and part is the current one.
 
 Driver due = `opening_due + Σ(target − amount)` over `joma` and `due` rows.
+
+Schema version 2 added `trips` and `parts`; version 3 added `service_visits`, `trip_payments` and the new columns. Older databases and backups are upgraded when opened.
 
 ## Google Drive setup
 

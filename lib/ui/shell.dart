@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
+import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../services/drive_backup.dart';
 import '../services/settings.dart';
@@ -12,10 +13,14 @@ import '../state/app_state.dart';
 import 'screens/entry_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ledger_screen.dart';
+import 'screens/maintenance_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/trip_screens.dart';
 import 'screens/vehicle_screens.dart';
 import 'widgets/common.dart';
+
+enum _Tab { home, fleet, trips, parts, ledger, reports, settings }
 
 class _NavItem {
   const _NavItem(this.icon, this.activeIcon, this.label);
@@ -33,7 +38,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _index = 0;
+  _Tab _tab = _Tab.home;
 
   @override
   void initState() {
@@ -58,36 +63,62 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  void _go(int i) {
-    HapticFeedback.selectionClick();
-    setState(() => _index = i);
+  /// Phones get four tabs around the + button; trips and parts open as pages.
+  List<_Tab> _tabs(bool wide) => wide ? _Tab.values : const [_Tab.home, _Tab.fleet, _Tab.ledger, _Tab.reports];
+
+  void _open(_Tab tab) {
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    if (_tabs(wide).contains(tab)) {
+      HapticFeedback.selectionClick();
+      setState(() => _tab = tab);
+      return;
+    }
+    final Widget page = switch (tab) {
+      _Tab.trips => const TripsScreen(),
+      _Tab.parts => const MaintenanceScreen(),
+      _ => const SettingsScreen(),
+    };
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
+
+  _NavItem _item(_Tab t, S s) => switch (t) {
+        _Tab.home => _NavItem(Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, s.navHome),
+        _Tab.fleet => _NavItem(Icons.directions_car_outlined, Icons.directions_car_filled_rounded, s.navFleet),
+        _Tab.trips => _NavItem(Icons.route_outlined, Icons.route_rounded, s.navTrips),
+        _Tab.parts => _NavItem(Icons.build_circle_outlined, Icons.build_circle_rounded, s.navParts),
+        _Tab.ledger => _NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, s.navLedger),
+        _Tab.reports => _NavItem(Icons.insights_outlined, Icons.insights_rounded, s.navReport),
+        _Tab.settings => _NavItem(Icons.tune_outlined, Icons.tune_rounded, s.navSettings),
+      };
+
+  Widget _page(_Tab t) => switch (t) {
+        _Tab.home => HomeScreen(
+            onOpenLedger: () => _open(_Tab.ledger),
+            onOpenTrips: () => _open(_Tab.trips),
+            onOpenParts: () => _open(_Tab.parts),
+          ),
+        _Tab.fleet => const FleetScreen(),
+        _Tab.trips => const TripsScreen(embedded: true),
+        _Tab.parts => const MaintenanceScreen(embedded: true),
+        _Tab.ledger => const LedgerScreen(),
+        _Tab.reports => ReportsScreen(onOpenTrips: () => _open(_Tab.trips)),
+        _Tab.settings => const SettingsScreen(embedded: true),
+      };
 
   @override
   Widget build(BuildContext context) {
     final s = context.s;
     final wide = MediaQuery.sizeOf(context).width >= 900;
-    final items = [
-      _NavItem(Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, s.navHome),
-      _NavItem(Icons.directions_car_outlined, Icons.directions_car_filled_rounded, s.navFleet),
-      _NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, s.navLedger),
-      _NavItem(Icons.insights_outlined, Icons.insights_rounded, s.navReport),
-      if (wide) _NavItem(Icons.tune_outlined, Icons.tune_rounded, s.navSettings),
-    ];
-    final index = _index.clamp(0, items.length - 1);
-    final pages = [
-      HomeScreen(onOpenTab: _go),
-      const FleetScreen(),
-      const LedgerScreen(),
-      const ReportsScreen(),
-      if (wide) const SettingsScreen(embedded: true),
-    ];
-    final body = IndexedStack(index: index, children: pages);
+    final tabs = _tabs(wide);
+    final items = [for (final t in tabs) _item(t, s)];
+    final index = tabs.contains(_tab) ? tabs.indexOf(_tab) : 0;
+    void go(int i) => _open(tabs[i]);
+    final body = IndexedStack(index: index, children: [for (final t in tabs) _page(t)]);
 
     if (wide) {
       return Scaffold(
         body: Row(children: [
-          _Sidebar(items: items, index: index, onTap: _go),
+          _Sidebar(items: items, index: index, onTap: go),
           Expanded(child: body),
         ]),
       );
@@ -96,7 +127,7 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       extendBody: true,
       body: body,
-      bottomNavigationBar: _FloatingNav(items: items, index: index, onTap: _go),
+      bottomNavigationBar: _FloatingNav(items: items, index: index, onTap: go),
     );
   }
 }

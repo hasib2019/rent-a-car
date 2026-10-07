@@ -13,17 +13,26 @@ import '../widgets/ledger_tile.dart';
 import 'daily_collection_screen.dart';
 import 'documents_screen.dart';
 import 'driver_screens.dart';
+import 'maintenance_screen.dart';
+import 'parties_screen.dart';
 import 'settings_screen.dart';
+import 'trip_screens.dart';
 import 'vehicle_screens.dart';
 
 class _HomeData {
-  _HomeData(this.today, this.month, this.spark, this.stats, this.recent, this.papers);
+  _HomeData(this.today, this.month, this.spark, this.stats, this.recent, this.papers, this.trips, this.partsDue, this.serviceDue, this.parties);
   final Map<int, Income> today;
   final Totals month;
   final List<double> spark;
   final Map<int, VehicleStat> stats;
   final List<LedgerEntry> recent;
   final List<Paper> papers;
+  final List<TripSummary> trips;
+  final List<PartStatus> partsDue;
+  final List<ServiceStatus> serviceDue;
+
+  /// Clients who still owe money.
+  final List<PartySummary> parties;
 }
 
 Future<_HomeData> _loadHome(Repository r) async {
@@ -37,6 +46,10 @@ Future<_HomeData> _loadHome(Repository r) async {
     r.vehicleStats(month),
     r.ledger(limit: 6),
     r.papers(),
+    r.trips(period: month),
+    r.partStatuses(),
+    r.serviceStatuses(),
+    r.parties(),
   ]);
   return _HomeData(
     res[0] as Map<int, Income>,
@@ -45,12 +58,18 @@ Future<_HomeData> _loadHome(Repository r) async {
     res[3] as Map<int, VehicleStat>,
     res[4] as List<LedgerEntry>,
     (res[5] as List<Paper>).where((p) => p.daysLeft <= 30).toList(),
+    res[6] as List<TripSummary>,
+    (res[7] as List<PartStatus>).where((p) => p.needsAttention).toList(),
+    (res[8] as List<ServiceStatus>).where((p) => p.needsAttention).toList(),
+    (res[9] as List<PartySummary>).where((p) => p.due > 0.5).toList(),
   );
 }
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.onOpenTab});
-  final ValueChanged<int> onOpenTab;
+  const HomeScreen({super.key, required this.onOpenLedger, required this.onOpenTrips, required this.onOpenParts});
+  final VoidCallback onOpenLedger;
+  final VoidCallback onOpenTrips;
+  final VoidCallback onOpenParts;
 
   @override
   Widget build(BuildContext context) {
@@ -99,9 +118,10 @@ class HomeScreen extends StatelessWidget {
         builder: (context, d) {
           final hero = _TodayHero(data: d);
           final month = _MonthCard(data: d);
-          final attention = _Attention(data: d);
+          final attention = _Attention(data: d, onOpenParts: onOpenParts);
+          final trips = _TripsSection(trips: d.trips, onSeeAll: onOpenTrips);
           final fleet = _FleetStrip(stats: d.stats);
-          final recent = _Recent(entries: d.recent, onSeeAll: () => onOpenTab(2));
+          final recent = _Recent(entries: d.recent, onSeeAll: onOpenLedger);
 
           return Contained(
             child: ListView(
@@ -118,10 +138,13 @@ class HomeScreen extends StatelessWidget {
                   Entrance(child: hero),
                   const SizedBox(height: 14),
                   Entrance(index: 1, child: month),
+                  const SizedBox(height: 14),
+                  Entrance(index: 2, child: _Shortcuts(data: d, onOpenTrips: onOpenTrips, onOpenParts: onOpenParts)),
                 ],
                 Entrance(index: 2, child: attention),
-                Entrance(index: 3, child: fleet),
-                Entrance(index: 4, child: recent),
+                Entrance(index: 3, child: trips),
+                Entrance(index: 4, child: fleet),
+                Entrance(index: 5, child: recent),
               ],
             ),
           );
@@ -268,8 +291,9 @@ class _MonthCard extends StatelessWidget {
 }
 
 class _Attention extends StatelessWidget {
-  const _Attention({required this.data});
+  const _Attention({required this.data, required this.onOpenParts});
   final _HomeData data;
+  final VoidCallback onOpenParts;
 
   @override
   Widget build(BuildContext context) {
@@ -279,9 +303,39 @@ class _Attention extends StatelessWidget {
     final p = context.pal;
     final owing = app.drivers.where((d) => (app.dues[d.id] ?? 0) > 0).toList()
       ..sort((a, b) => (app.dues[b.id] ?? 0).compareTo(app.dues[a.id] ?? 0));
-    if (owing.isEmpty && data.papers.isEmpty) return const SizedBox.shrink();
+    final parts = data.partsDue;
+    final licences = app.drivers.where((d) => d.active && d.licenseDaysLeft != null && d.licenseDaysLeft! <= 30).toList()
+      ..sort((a, b) => a.licenseDaysLeft!.compareTo(b.licenseDaysLeft!));
+    final partyDue = data.parties.fold<double>(0, (a, x) => a + x.due);
 
     final cards = <Widget>[
+      if (data.parties.isNotEmpty)
+        _AttentionCard(
+          icon: Icons.groups_rounded,
+          color: p.warning,
+          title: s.partyDues,
+          value: f.money(partyDue),
+          lines: [for (final x in data.parties.take(3)) '${x.name} · ${f.money(x.due)}'],
+          onTap: () => openParties(context),
+        ),
+      if (data.serviceDue.isNotEmpty)
+        _AttentionCard(
+          icon: Icons.event_repeat_rounded,
+          color: data.serviceDue.any((x) => x.health == DueHealth.overdue) ? p.expense : p.warning,
+          title: s.serviceDue,
+          value: f.digits(data.serviceDue.length),
+          lines: [for (final st in data.serviceDue.take(3)) '${app.vehicle(st.vehicleId)?.name ?? ''} · ${dueLabel(st, s, f)}'],
+          onTap: onOpenParts,
+        ),
+      if (licences.isNotEmpty)
+        _AttentionCard(
+          icon: Icons.badge_rounded,
+          color: licences.any((d) => d.licenseDaysLeft! < 0) ? p.expense : p.warning,
+          title: s.licensesExpiring,
+          value: f.digits(licences.length),
+          lines: [for (final d in licences.take(3)) '${d.name} · ${s.expiresIn(d.licenseDaysLeft!)}'],
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DriverDetailScreen(driverId: licences.first.id!))),
+        ),
       if (owing.isNotEmpty)
         _AttentionCard(
           icon: Icons.account_balance_wallet_rounded,
@@ -302,21 +356,39 @@ class _Attention extends StatelessWidget {
           ],
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DocumentsScreen())),
         ),
+      if (parts.isNotEmpty)
+        _AttentionCard(
+          icon: Icons.build_circle_rounded,
+          color: parts.any((x) => x.health == DueHealth.overdue) ? p.expense : p.warning,
+          title: s.partsDueShort,
+          value: f.digits(parts.length),
+          lines: [
+            for (final st in parts.take(3)) '${app.vehicle(st.part.vehicleId)?.name ?? ''} · ${st.part.label(s)} · ${dueLabel(st, s, f)}',
+          ],
+          onTap: onOpenParts,
+        ),
     ];
+    if (cards.isEmpty) return const SizedBox.shrink();
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SectionHeader(s.attention),
       LayoutBuilder(builder: (context, c) {
-        if (c.maxWidth > 640 || cards.length == 1) {
-          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            for (var i = 0; i < cards.length; i++) ...[
-              if (i > 0) const SizedBox(width: 12),
-              Expanded(child: cards[i]),
-            ],
-          ]);
+        // Up to three cards per row on wide screens, one per row on phones.
+        final cols = c.maxWidth > 900 ? 3 : (c.maxWidth > 560 ? 2 : 1);
+        final rows = <Widget>[];
+        for (var i = 0; i < cards.length; i += cols) {
+          final chunk = cards.sublist(i, (i + cols).clamp(0, cards.length));
+          rows.add(IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              for (var j = 0; j < cols; j++) ...[
+                if (j > 0) const SizedBox(width: 12),
+                Expanded(child: j < chunk.length ? chunk[j] : const SizedBox.shrink()),
+              ],
+            ]),
+          ));
         }
         return Column(children: [
-          for (var i = 0; i < cards.length; i++) ...[if (i > 0) const SizedBox(height: 12), cards[i]],
+          for (var i = 0; i < rows.length; i++) ...[if (i > 0) const SizedBox(height: 12), rows[i]],
         ]);
       }),
     ]);
@@ -356,6 +428,118 @@ class _AttentionCard extends StatelessWidget {
         ),
       ]),
     );
+  }
+}
+
+/// Phone-only entry points to trips and parts (wide layouts have the sidebar).
+class _Shortcuts extends StatelessWidget {
+  const _Shortcuts({required this.data, required this.onOpenTrips, required this.onOpenParts});
+  final _HomeData data;
+  final VoidCallback onOpenTrips;
+  final VoidCallback onOpenParts;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    final f = context.fmt;
+    final p = context.pal;
+    final due = data.partsDue.length;
+    Widget tile(IconData icon, Color color, String title, String sub, VoidCallback onTap) => Expanded(
+          child: Panel(
+            onTap: onTap,
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              IconBubble(icon, color, size: 40),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.muted, fontSize: 12)),
+                ]),
+              ),
+            ]),
+          ),
+        );
+    return Row(children: [
+      tile(Icons.route_rounded, p.income, s.trips, '${s.tripCount(data.trips.length)} · ${f.monthShort(DateTime.now().month)}', onOpenTrips),
+      const SizedBox(width: 12),
+      tile(Icons.build_circle_rounded, due > 0 ? p.warning : ExpenseCategory.servicing.color, s.partsShort, due > 0 ? s.partsDueCount(due) : s.allPartsOk, onOpenParts),
+    ]);
+  }
+}
+
+/// This month's trips: totals plus the latest few.
+class _TripsSection extends StatelessWidget {
+  const _TripsSection({required this.trips, required this.onSeeAll});
+  final List<TripSummary> trips;
+  final VoidCallback onSeeAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    final f = context.fmt;
+    final p = context.pal;
+    final app = context.watch<AppState>();
+    final fare = trips.fold<double>(0, (a, t) => a + t.trip.earned);
+    final cost = trips.fold<double>(0, (a, t) => a + t.cost);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SectionHeader('${s.trips} · ${s.thisMonth}', action: s.seeAll, onAction: onSeeAll),
+      Panel(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: KeyValue(s.trips, f.digits(trips.length))),
+            Expanded(child: KeyValue(s.fare, f.money(fare), color: p.income)),
+            Expanded(child: KeyValue(s.tripCost, f.money(cost), color: p.expense)),
+            Expanded(child: KeyValue(s.profit, f.money(fare - cost), color: fare - cost >= 0 ? p.ink : p.expense, end: true)),
+          ]),
+          const SizedBox(height: 6),
+          Divider(color: p.line),
+          if (trips.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                Expanded(child: Text(s.noTripsBody, style: TextStyle(color: p.muted, fontSize: 13))),
+                const SizedBox(width: 10),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                  onPressed: () => openTripForm(context),
+                  icon: const Icon(Icons.add_rounded),
+                  label: Text(s.newTrip),
+                ),
+              ]),
+            )
+          else
+            for (final t in trips.take(3))
+              InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => openTrip(context, t.trip.id!),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(children: [
+                    if (app.vehicle(t.trip.vehicleId) case final v?) TypeBadge(v.type, size: 38),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        RouteText(t.trip, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
+                        Text('${tripDates(f, t.trip)} · ${app.vehicle(t.trip.vehicleId)?.name ?? ''}',
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.muted, fontSize: 12.5)),
+                      ]),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      if (t.trip.status.countsFare)
+                        Text(f.money(t.profit), style: TextStyle(fontWeight: FontWeight.w800, color: t.profit >= 0 ? p.income : p.expense))
+                      else
+                        TripStatusPill(t.trip.status),
+                      Text('${s.fare} ${f.money(t.trip.fare)}', style: TextStyle(color: p.muted, fontSize: 11.5)),
+                    ]),
+                  ]),
+                ),
+              ),
+        ]),
+      ),
+    ]);
   }
 }
 

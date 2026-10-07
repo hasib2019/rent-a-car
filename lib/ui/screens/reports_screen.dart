@@ -15,15 +15,17 @@ import 'vehicle_screens.dart';
 enum _Range { thisMonth, lastMonth, thisYear, allTime, custom }
 
 class _ReportData {
-  _ReportData(this.totals, this.stats, this.monthly, this.categories);
+  _ReportData(this.totals, this.stats, this.monthly, this.categories, this.trips);
   final Totals totals;
   final Map<int, VehicleStat> stats;
   final List<MonthPoint> monthly;
   final Map<ExpenseCategory, double> categories;
+  final ({int count, double fare, double cost, double due}) trips;
 }
 
 class ReportsScreen extends StatefulWidget {
-  const ReportsScreen({super.key});
+  const ReportsScreen({super.key, this.onOpenTrips});
+  final VoidCallback? onOpenTrips;
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();
@@ -43,8 +45,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Future<_ReportData> _load(Repository r) async {
     final p = _period;
-    final res = await Future.wait([r.totals(p), r.vehicleStats(p), r.monthly(months: 6), r.expenseByCategory(p)]);
-    return _ReportData(res[0] as Totals, res[1] as Map<int, VehicleStat>, res[2] as List<MonthPoint>, res[3] as Map<ExpenseCategory, double>);
+    final res = await Future.wait([r.totals(p), r.vehicleStats(p), r.monthly(months: 6), r.expenseByCategory(p), r.tripTotals(p)]);
+    return _ReportData(
+      res[0] as Totals,
+      res[1] as Map<int, VehicleStat>,
+      res[2] as List<MonthPoint>,
+      res[3] as Map<ExpenseCategory, double>,
+      res[4] as ({int count, double fare, double cost, double due}),
+    );
   }
 
   String _rangeLabel(_Range r) {
@@ -115,6 +123,41 @@ class _ReportsScreenState extends State<ReportsScreen> {
               builder: (context, d) {
                 final summary = _Summary(totals: d.totals, label: _rangeLabel(_range));
                 final board = _Leaderboard(stats: d.stats);
+                final tripProfit = d.trips.fare - d.trips.cost;
+                final trips = Panel(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.route_rounded, color: p.income),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(s.tripSummary, style: const TextStyle(fontWeight: FontWeight.w700))),
+                      if (widget.onOpenTrips != null)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: widget.onOpenTrips,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Text(s.seeAll, style: TextStyle(color: p.muted, fontWeight: FontWeight.w600, fontSize: 13)),
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(height: 14),
+                    Row(children: [
+                      Expanded(child: KeyValue(s.trips, f.digits(d.trips.count))),
+                      Expanded(child: KeyValue(s.fare, f.money(d.trips.fare), color: p.income)),
+                      Expanded(child: KeyValue(s.tripCost, f.money(d.trips.cost), color: p.expense)),
+                      Expanded(child: KeyValue(s.profit, f.money(tripProfit), color: tripProfit >= 0 ? p.ink : p.expense, end: true)),
+                    ]),
+                    if (d.trips.due > 0.5) ...[
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Icon(Icons.pending_actions_rounded, size: 18, color: p.warning),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(s.partyDue, style: TextStyle(color: p.muted, fontWeight: FontWeight.w600))),
+                        Text(f.money(d.trips.due), style: TextStyle(color: p.warning, fontWeight: FontWeight.w800)),
+                      ]),
+                    ],
+                  ]),
+                );
                 final trend = Panel(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${s.monthlyTrend} · ${s.sixMonths}', style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -162,7 +205,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   children: wide
                       ? [
                           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Expanded(child: Column(children: [summary, const SizedBox(height: 16), board])),
+                            Expanded(child: Column(children: [summary, const SizedBox(height: 16), board, const SizedBox(height: 16), trips])),
                             const SizedBox(width: 16),
                             Expanded(child: Column(children: [trend, const SizedBox(height: 16), donut, const SizedBox(height: 16), dues])),
                           ]),
@@ -171,6 +214,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           Entrance(child: summary),
                           const SizedBox(height: 16),
                           Entrance(index: 1, child: board),
+                          const SizedBox(height: 16),
+                          trips,
                           const SizedBox(height: 16),
                           Entrance(index: 2, child: trend),
                           const SizedBox(height: 16),

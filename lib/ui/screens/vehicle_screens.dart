@@ -14,6 +14,9 @@ import '../widgets/ledger_tile.dart';
 import 'documents_screen.dart';
 import 'driver_screens.dart';
 import 'entry_screen.dart';
+import 'maintenance_screen.dart';
+import 'service_screens.dart';
+import 'trip_screens.dart';
 
 enum FleetTab { vehicles, drivers }
 
@@ -176,7 +179,8 @@ class VehicleCard extends StatelessWidget {
 // ── Detail ────────────────────────────────────────────────────────────────
 
 class _VehicleData {
-  _VehicleData(this.lifetime, this.month, this.monthly, this.categories, this.mileage, this.papers, this.history);
+  _VehicleData(this.lifetime, this.month, this.monthly, this.categories, this.mileage, this.papers, this.history, this.parts, this.trips, this.visits,
+      this.service, this.odometer);
   final VehicleStat lifetime;
   final VehicleStat month;
   final List<MonthPoint> monthly;
@@ -184,6 +188,11 @@ class _VehicleData {
   final double? mileage;
   final List<Paper> papers;
   final List<LedgerEntry> history;
+  final List<PartStatus> parts;
+  final List<TripSummary> trips;
+  final List<VisitSummary> visits;
+  final ServiceStatus? service;
+  final double? odometer;
 }
 
 Future<_VehicleData> _loadVehicle(Repository r, int id) async {
@@ -195,6 +204,11 @@ Future<_VehicleData> _loadVehicle(Repository r, int id) async {
     r.mileage(id),
     r.papers(vehicleId: id),
     r.ledger(vehicleId: id, limit: 40),
+    r.partStatuses(vehicleId: id),
+    r.trips(vehicleId: id, limit: 5),
+    r.visits(vehicleId: id, limit: 6),
+    r.serviceStatuses(vehicleId: id),
+    r.odometers(),
   ]);
   return _VehicleData(
     (res[0] as Map<int, VehicleStat>)[id] ?? VehicleStat(vehicleId: id),
@@ -204,6 +218,11 @@ Future<_VehicleData> _loadVehicle(Repository r, int id) async {
     res[4] as double?,
     res[5] as List<Paper>,
     res[6] as List<LedgerEntry>,
+    res[7] as List<PartStatus>,
+    res[8] as List<TripSummary>,
+    res[9] as List<VisitSummary>,
+    (res[10] as List<ServiceStatus>).firstOrNull,
+    (res[11] as Map<int, double>)[id],
   );
 }
 
@@ -301,11 +320,13 @@ class VehicleDetailScreen extends StatelessWidget {
           );
 
           final actions = Row(children: [
+            Expanded(child: _ActionBtn(icon: Icons.route_rounded, label: s.trip, color: p.income, onTap: () => openTripForm(context, vehicleId: vehicleId))),
+            const SizedBox(width: 8),
             Expanded(child: _ActionBtn(icon: Icons.local_gas_station_rounded, label: s.fuel, color: ExpenseCategory.fuel.color, onTap: () => openEntry(context, EntryMode.fuel, vehicleId: vehicleId))),
-            const SizedBox(width: 10),
-            Expanded(child: _ActionBtn(icon: Icons.build_circle_rounded, label: s.expense, color: ExpenseCategory.servicing.color, onTap: () => openEntry(context, EntryMode.expense, vehicleId: vehicleId))),
-            const SizedBox(width: 10),
-            Expanded(child: _ActionBtn(icon: Icons.route_rounded, label: s.income, color: p.income, onTap: () => openEntry(context, EntryMode.trip, vehicleId: vehicleId))),
+            const SizedBox(width: 8),
+            Expanded(child: _ActionBtn(icon: Icons.garage_rounded, label: s.serviceShort, color: ExpenseCategory.servicing.color, onTap: () => openVisitForm(context, vehicleId: vehicleId))),
+            const SizedBox(width: 8),
+            Expanded(child: _ActionBtn(icon: Icons.receipt_long_rounded, label: s.expense, color: ExpenseCategory.repair.color, onTap: () => openEntry(context, EntryMode.expense, vehicleId: vehicleId))),
           ]);
 
           final month = d.month;
@@ -344,6 +365,10 @@ class VehicleDetailScreen extends StatelessWidget {
           ]));
 
           final papers = _PapersCard(vehicleId: vehicleId, papers: d.papers);
+          final parts = _PartsCard(vehicleId: vehicleId, statuses: d.parts);
+          final trips = _TripsCard(vehicleId: vehicleId, trips: d.trips);
+          final serviceBook = _ServiceBookCard(vehicleId: vehicleId, visits: d.visits, next: d.service);
+          final info = _InfoCard(vehicle: v, odometer: d.odometer);
 
           final history = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SectionHeader(s.history),
@@ -367,9 +392,9 @@ class VehicleDetailScreen extends StatelessWidget {
                       ]),
                       const SizedBox(height: 16),
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Expanded(child: costs),
+                        Expanded(child: Column(children: [trips, const SizedBox(height: 16), serviceBook, const SizedBox(height: 16), costs])),
                         const SizedBox(width: 16),
-                        Expanded(child: papers),
+                        Expanded(child: Column(children: [parts, const SizedBox(height: 16), papers, const SizedBox(height: 16), info])),
                       ]),
                       history,
                     ]
@@ -384,9 +409,17 @@ class VehicleDetailScreen extends StatelessWidget {
                       const SizedBox(height: 14),
                       chart,
                       const SizedBox(height: 14),
+                      trips,
+                      const SizedBox(height: 14),
+                      serviceBook,
+                      const SizedBox(height: 14),
+                      parts,
+                      const SizedBox(height: 14),
                       costs,
                       const SizedBox(height: 14),
                       papers,
+                      const SizedBox(height: 14),
+                      info,
                       history,
                     ],
             ),
@@ -511,6 +544,169 @@ class _PapersCard extends StatelessWidget {
   }
 }
 
+class _PartsCard extends StatelessWidget {
+  const _PartsCard({required this.vehicleId, required this.statuses});
+  final int vehicleId;
+  final List<PartStatus> statuses;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    return Panel(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(s.installedParts, style: const TextStyle(fontWeight: FontWeight.w700))),
+          TextButton.icon(
+            onPressed: () => openPartForm(context, vehicleId: vehicleId),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(s.add),
+          ),
+        ]),
+        if (statuses.isEmpty)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(s.noPartsBody, style: TextStyle(color: context.pal.muted)))
+        else
+          for (final st in statuses) PartStatusTile(status: st, showVehicle: false),
+      ]),
+    );
+  }
+}
+
+/// The vehicle's garage history: official services and local repairs.
+class _ServiceBookCard extends StatelessWidget {
+  const _ServiceBookCard({required this.vehicleId, required this.visits, this.next});
+  final int vehicleId;
+  final List<VisitSummary> visits;
+  final ServiceStatus? next;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    final p = context.pal;
+    return Panel(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.menu_book_rounded, color: ServiceKind.official.color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text(s.serviceBook, style: const TextStyle(fontWeight: FontWeight.w700))),
+          TextButton.icon(
+            onPressed: () => openVisitForm(context, vehicleId: vehicleId),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(s.add),
+          ),
+        ]),
+        if (next != null) ServiceDueTile(status: next!, showVehicle: false),
+        if (visits.isEmpty)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(s.noVisitsBody, style: TextStyle(color: p.muted)))
+        else
+          for (final v in visits) VisitTile(summary: v, showVehicle: false),
+      ]),
+    );
+  }
+}
+
+/// Registration and identity details of the vehicle.
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.vehicle, this.odometer});
+  final Vehicle vehicle;
+  final double? odometer;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    final f = context.fmt;
+    final p = context.pal;
+    final v = vehicle;
+    final rows = <(String, String)>[
+      if (v.regNo?.isNotEmpty ?? false) (s.regNo, v.regNo!),
+      if (v.model?.isNotEmpty ?? false) (s.model, v.model!),
+      if (v.year != null) (s.modelYear, f.digits(v.year!)),
+      if (v.color?.isNotEmpty ?? false) (s.color, v.color!),
+      if (v.fuel != null) (s.fuelType, v.fuel!.label(s)),
+      if (v.capacity?.isNotEmpty ?? false) (s.capacity, v.capacity!),
+      if (v.chassisNo?.isNotEmpty ?? false) (s.chassisNo, v.chassisNo!),
+      if (v.engineNo?.isNotEmpty ?? false) (s.engineNo, v.engineNo!),
+      if (v.purchaseDate != null) (s.purchaseDate, f.date(v.purchaseDate!)),
+      if (v.purchasePrice > 0) (s.purchasePrice, f.money(v.purchasePrice)),
+      if (odometer != null) (s.odometerNow, '${f.number(odometer!)} ${s.km}'),
+    ];
+    return Panel(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(s.vehicleInfo, style: const TextStyle(fontWeight: FontWeight.w700))),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleFormScreen(vehicle: v))),
+            icon: const Icon(Icons.edit_rounded, size: 18),
+            label: Text(s.edit),
+          ),
+        ]),
+        if (rows.isEmpty) Text(s.moreDetails, style: TextStyle(color: p.muted)),
+        for (final (k, val) in rows)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(width: 130, child: Text(k, style: TextStyle(color: p.muted, fontSize: 13))),
+              Expanded(child: SelectableText(val, style: const TextStyle(fontWeight: FontWeight.w600))),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
+
+class _TripsCard extends StatelessWidget {
+  const _TripsCard({required this.vehicleId, required this.trips});
+  final int vehicleId;
+  final List<TripSummary> trips;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.s;
+    final f = context.fmt;
+    final p = context.pal;
+    return Panel(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(s.recentTrips, style: const TextStyle(fontWeight: FontWeight.w700))),
+          if (trips.isNotEmpty)
+            TextButton(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => TripsScreen(vehicleId: vehicleId))),
+              child: Text(s.seeAll),
+            ),
+          TextButton.icon(
+            onPressed: () => openTripForm(context, vehicleId: vehicleId),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(s.add),
+          ),
+        ]),
+        if (trips.isEmpty)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(s.noTripsBody, style: TextStyle(color: p.muted)))
+        else
+          for (final t in trips)
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => openTrip(context, t.trip.id!),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(children: [
+                  IconBubble(Icons.route_rounded, p.income, size: 38),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      RouteText(t.trip, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
+                      Text('${tripDates(f, t.trip)} · ${s.fare} ${f.money(t.trip.fare)} · ${s.expense} ${f.money(t.cost)}',
+                          maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.muted, fontSize: 12.5)),
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(f.money(t.profit), style: TextStyle(fontWeight: FontWeight.w800, color: t.profit >= 0 ? p.income : p.expense)),
+                ]),
+              ),
+            ),
+      ]),
+    );
+  }
+}
+
 // ── Form ──────────────────────────────────────────────────────────────────
 
 class VehicleFormScreen extends StatefulWidget {
@@ -529,6 +725,12 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   late final _price = TextEditingController(text: _num(widget.vehicle?.purchasePrice));
   late final _target = TextEditingController(text: _num(widget.vehicle?.dailyTarget));
   late final _note = TextEditingController(text: widget.vehicle?.note);
+  late final _chassis = TextEditingController(text: widget.vehicle?.chassisNo);
+  late final _engine = TextEditingController(text: widget.vehicle?.engineNo);
+  late final _color = TextEditingController(text: widget.vehicle?.color);
+  late final _year = TextEditingController(text: widget.vehicle?.year?.toString());
+  late final _capacity = TextEditingController(text: widget.vehicle?.capacity);
+  late FuelType? _fuel = widget.vehicle?.fuel;
   late VehicleType _type = widget.vehicle?.type ?? VehicleType.cng;
   late VehicleStatus _status = widget.vehicle?.status ?? VehicleStatus.active;
   late int? _driverId = widget.vehicle?.driverId;
@@ -538,17 +740,25 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
 
   @override
   void dispose() {
-    for (final c in [_name, _reg, _model, _price, _target, _note]) {
+    for (final c in [_name, _reg, _model, _price, _target, _note, _chassis, _engine, _color, _year, _capacity]) {
       c.dispose();
     }
     super.dispose();
   }
+
+  String? _t(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     final app = context.read<AppState>();
     final s = context.s;
     final v = Vehicle(
+      chassisNo: _t(_chassis),
+      engineNo: _t(_engine),
+      color: _t(_color),
+      year: parseAmount(_year.text)?.round(),
+      fuel: _fuel,
+      capacity: _t(_capacity),
       id: widget.vehicle?.id,
       name: _name.text,
       type: _type,
@@ -683,6 +893,54 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                   ),
                 ),
               ]),
+              const SizedBox(height: 12),
+              Panel(
+                padding: EdgeInsets.zero,
+                child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    initiallyExpanded: [_chassis, _engine, _color, _year, _capacity].any((c) => c.text.isNotEmpty) || _fuel != null,
+                    leading: const Icon(Icons.fact_check_outlined),
+                    title: Text(s.moreDetails, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
+                    childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    children: [
+                      Row(children: [
+                        Expanded(child: TextFormField(controller: _chassis, decoration: InputDecoration(labelText: s.chassisNo))),
+                        const SizedBox(width: 10),
+                        Expanded(child: TextFormField(controller: _engine, decoration: InputDecoration(labelText: s.engineNo))),
+                      ]),
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Expanded(child: TextFormField(controller: _color, decoration: InputDecoration(labelText: s.color))),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _year,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(labelText: s.modelYear),
+                            validator: (v) => v != null && v.trim().isNotEmpty && parseAmount(v) == null ? s.invalidNumber : null,
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 10),
+                      TextFormField(controller: _capacity, decoration: InputDecoration(labelText: s.capacity, hintText: s.capacityHint)),
+                      const SizedBox(height: 14),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(s.fuelType, style: TextStyle(color: p.muted, fontWeight: FontWeight.w600, fontSize: 13)),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(spacing: 8, runSpacing: 8, children: [
+                          for (final fuel in FuelType.values)
+                            ChoiceTag(label: fuel.label(s), selected: _fuel == fuel, onTap: () => setState(() => _fuel = _fuel == fuel ? null : fuel)),
+                        ]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
               _label(s.assignedDriver),
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -713,7 +971,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           maxWidth: 640,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: FilledButton(onPressed: _save, child: Text(s.save)),
+            child: SizedBox(width: double.infinity, child: FilledButton(onPressed: _save, child: Text(s.save))),
           ),
         ),
       ),

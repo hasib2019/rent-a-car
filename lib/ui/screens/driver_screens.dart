@@ -192,6 +192,31 @@ class DriverDetailScreen extends StatelessWidget {
                             icon: const Icon(Icons.call_rounded),
                           ),
                       ]),
+                      if ((d.licenseNo?.isNotEmpty ?? false) || d.licenseExpiry != null) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(16)),
+                          child: Row(children: [
+                            Icon(Icons.badge_outlined, color: p.muted, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                [
+                                  if (d.licenseNo?.isNotEmpty ?? false) '${s.licenseNo}: ${d.licenseNo}',
+                                  if (d.licenseExpiry != null) '${s.licenseExpiry}: ${f.date(d.licenseExpiry!)}',
+                                ].join(' · '),
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                              ),
+                            ),
+                            if (d.licenseDaysLeft != null)
+                              StatusPill(
+                                s.expiresIn(d.licenseDaysLeft!),
+                                d.licenseDaysLeft! < 0 ? p.expense : (d.licenseDaysLeft! <= 30 ? p.warning : p.income),
+                              ),
+                          ]),
+                        ),
+                      ],
                     ]),
                   ),
                 ),
@@ -262,6 +287,7 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
   late final _due = TextEditingController(
       text: widget.driver == null || widget.driver!.openingDue == 0 ? '' : widget.driver!.openingDue.round().toString());
   late DateTime? _join = widget.driver?.joinDate ?? DateUtils.dateOnly(DateTime.now());
+  late DateTime? _licenseExpiry = widget.driver?.licenseExpiry;
   late bool _active = widget.driver?.active ?? true;
 
   @override
@@ -288,6 +314,7 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
       openingDue: parseAmount(_due.text) ?? 0,
       active: _active,
       note: widget.driver?.note,
+      licenseExpiry: _licenseExpiry,
     );
     final id = await context.read<AppState>().mutate((r) => r.saveDriver(d));
     if (!mounted) return;
@@ -352,6 +379,8 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
                 Expanded(child: TextFormField(controller: _license, decoration: InputDecoration(labelText: s.licenseNo, prefixIcon: const Icon(Icons.badge_outlined)))),
               ]),
               const SizedBox(height: 12),
+              DateFormField(label: s.licenseExpiry, value: _licenseExpiry, onPick: (d) => setState(() => _licenseExpiry = d)),
+              const SizedBox(height: 12),
               TextFormField(controller: _address, maxLines: 2, decoration: InputDecoration(labelText: s.address, prefixIcon: const Icon(Icons.home_outlined))),
               const SizedBox(height: 12),
               Row(children: [
@@ -383,7 +412,10 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
       bottomNavigationBar: SafeArea(
         child: Contained(
           maxWidth: 640,
-          child: Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 12), child: FilledButton(onPressed: _save, child: Text(s.save))),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: SizedBox(width: double.infinity, child: FilledButton(onPressed: _save, child: Text(s.save))),
+          ),
         ),
       ),
     );

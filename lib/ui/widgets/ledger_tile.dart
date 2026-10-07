@@ -32,6 +32,10 @@ class LedgerTile extends StatelessWidget {
       title = e.incomeKind.label(s);
       icon = e.incomeKind.icon;
       color = p.income;
+    } else if (e.partType != null) {
+      title = e.partType!.label(s);
+      icon = e.partType!.icon;
+      color = e.partType!.color;
     } else {
       title = e.expenseCategory.label(s);
       icon = e.expenseCategory.icon;
@@ -42,8 +46,12 @@ class LedgerTile extends StatelessWidget {
       if (showDate) f.dayMonth(e.date),
       if (showVehicle && vehicle != null) vehicle.name,
       if (driver != null && e.incomeKind != IncomeKind.trip) driver.name,
+      if (e.route != null) e.route!,
+      if (e.workshop?.isNotEmpty ?? false) e.workshop!,
+      if (e.place?.isNotEmpty ?? false) e.place!,
       if (e.quantity != null) '${f.number(e.quantity!, decimals: 1)} ${s.bn ? 'ইউনিট' : 'units'}',
-      if (e.note != null && e.note!.isNotEmpty) e.note!,
+      // A trip fare's note just repeats the route.
+      if (e.note != null && e.note!.isNotEmpty && !(e.isIncome && e.tripId != null)) e.note!,
     ].join(' · ');
 
     final short = e.isIncome && e.incomeKind == IncomeKind.joma && e.amount < e.target ? e.target - e.amount : 0.0;
@@ -51,7 +59,8 @@ class LedgerTile extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () => openEntryEditor(context, e),
-      onLongPress: () => deleteLedgerEntry(context, e),
+      // Trip and part rows are deleted from their own screens.
+      onLongPress: () => e.isLinked ? openEntryEditor(context, e) : deleteLedgerEntry(context, e),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
         child: Row(children: [

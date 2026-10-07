@@ -9,12 +9,24 @@ import '../../data/models.dart';
 import '../../state/app_state.dart';
 import '../widgets/common.dart';
 import 'daily_collection_screen.dart';
+import 'documents_screen.dart';
+import 'maintenance_screen.dart';
+import 'parties_screen.dart';
+import 'service_screens.dart';
+import 'trip_screens.dart';
 
 enum EntryMode { fuel, expense, trip, due, joma }
 
 /// Opens the right editor for a ledger row.
 Future<void> openEntryEditor(BuildContext context, LedgerEntry e) async {
   final repo = context.read<AppState>().repo;
+  if (e.tripId != null) return openTrip(context, e.tripId!);
+  if (e.visitId != null) return openVisit(context, e.visitId!);
+  if (e.partId != null) {
+    final part = await repo.part(e.partId!);
+    if (part == null || !context.mounted) return;
+    return openFitting(context, part);
+  }
   if (e.isIncome) {
     final i = await repo.income(e.id);
     if (i == null || !context.mounted) return;
@@ -67,7 +79,7 @@ Future<void> showQuickAdd(BuildContext context) {
       return SafeArea(
         child: Contained(
           maxWidth: 560,
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Padding(
@@ -106,10 +118,14 @@ Future<void> showQuickAdd(BuildContext context) {
                 crossAxisSpacing: 12,
                 childAspectRatio: 1.45,
                 children: [
+                  option(Icons.route_rounded, p.income, s.newTrip, s.newTripSub, () => openTripForm(context)),
+                  option(Icons.garage_rounded, ExpenseCategory.servicing.color, s.visitQuick, s.visitQuickSub, () => openVisitForm(context)),
                   option(Icons.local_gas_station_rounded, ExpenseCategory.fuel.color, s.fuel, s.fuelSub, () => openEntry(context, EntryMode.fuel)),
-                  option(Icons.build_circle_rounded, ExpenseCategory.servicing.color, s.maintenance, s.maintenanceSub, () => openEntry(context, EntryMode.expense)),
-                  option(Icons.route_rounded, p.income, s.tripIncome, s.tripIncomeSub, () => openEntry(context, EntryMode.trip)),
+                  option(PartType.engineOil.icon, PartType.engineOil.color, s.partFitted, s.partFittedSub, () => openPartForm(context)),
+                  option(Icons.groups_rounded, p.info, s.partyCollectQuick, s.partyCollectQuickSub, () => openParties(context)),
                   option(Icons.savings_rounded, p.warning, s.duePayment, s.duePaymentSub, () => openEntry(context, EntryMode.due)),
+                  option(Icons.receipt_long_rounded, ExpenseCategory.repair.color, s.otherCost, s.otherCostSub, () => openEntry(context, EntryMode.expense)),
+                  option(Icons.event_note_rounded, ExpenseCategory.papers.color, s.papers, s.paperExpirySub, () => showPaperSheet(context)),
                 ],
               ),
             ]),
@@ -275,6 +291,9 @@ class _EntryScreenState extends State<EntryScreen> {
                 quantity: _category == ExpenseCategory.fuel ? parseAmount(_qty.text) : null,
                 odometer: _category == ExpenseCategory.fuel ? parseAmount(_odo.text) : null,
                 note: note,
+                place: widget.expense?.place,
+                tripId: widget.expense?.tripId,
+                partId: widget.expense?.partId,
               )));
         case EntryMode.trip:
           await app.mutate((r) => r.saveIncome(Income(
@@ -285,6 +304,7 @@ class _EntryScreenState extends State<EntryScreen> {
                 kind: IncomeKind.trip,
                 amount: amount,
                 note: note,
+                tripId: widget.income?.tripId,
               )));
         case EntryMode.due:
           await app.mutate((r) => r.saveIncome(Income(

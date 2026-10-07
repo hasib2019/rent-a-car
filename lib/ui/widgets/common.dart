@@ -682,6 +682,9 @@ class RoundIconButton extends StatelessWidget {
 }
 
 /// Constrains content width on tablets / web.
+///
+/// Takes only its child's height ([Align.heightFactor] = 1), so it is safe in
+/// bottom bars and sheets; scrollables inside still fill the available space.
 class Contained extends StatelessWidget {
   const Contained({super.key, required this.child, this.maxWidth = 1100});
   final Widget child;
@@ -690,8 +693,187 @@ class Contained extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Align(
         alignment: Alignment.topCenter,
+        heightFactor: 1,
         child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: child),
       );
+}
+
+/// ‹ October 2026 › pill. Never moves past the current month.
+class MonthSwitcher extends StatelessWidget {
+  const MonthSwitcher({super.key, required this.month, required this.onChanged});
+  final DateTime month;
+  final ValueChanged<DateTime> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    final now = DateTime.now();
+    final isCurrent = month.year == now.year && month.month == now.month;
+    return Container(
+      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(40), border: Border.all(color: p.line)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: () => onChanged(DateTime(month.year, month.month - 1)),
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+        Text(context.fmt.monthYear(month), style: const TextStyle(fontWeight: FontWeight.w700)),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: isCurrent ? null : () => onChanged(DateTime(month.year, month.month + 1)),
+          icon: const Icon(Icons.chevron_right_rounded),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Horizontal "All · vehicle · vehicle…" chips.
+class VehicleFilter extends StatelessWidget {
+  const VehicleFilter({super.key, required this.selected, required this.onChanged});
+  final int? selected;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return SizedBox(
+      height: 58,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+        children: [
+          ChoiceTag(label: context.s.all, selected: selected == null, onTap: () => onChanged(null)),
+          for (final v in app.vehicles) ...[
+            const SizedBox(width: 8),
+            ChoiceTag(label: v.name, icon: v.type.icon, color: v.type.color, selected: selected == v.id, onTap: () => onChanged(v.id)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Text field that suggests values typed before (garages, shops, clients) so
+/// the same name is not spelled three different ways.
+class SuggestField extends StatefulWidget {
+  const SuggestField({
+    super.key,
+    required this.controller,
+    required this.suggestions,
+    required this.label,
+    this.hint,
+    this.icon,
+    this.onSelected,
+    this.validator,
+  });
+
+  final TextEditingController controller;
+  final List<String> suggestions;
+  final String label;
+  final String? hint;
+  final IconData? icon;
+  final ValueChanged<String>? onSelected;
+  final FormFieldValidator<String>? validator;
+
+  @override
+  State<SuggestField> createState() => _SuggestFieldState();
+}
+
+class _SuggestFieldState extends State<SuggestField> {
+  final _focus = FocusNode();
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    return RawAutocomplete<String>(
+      textEditingController: widget.controller,
+      focusNode: _focus,
+      optionsBuilder: (value) {
+        final q = value.text.trim().toLowerCase();
+        if (q.isEmpty) return const Iterable<String>.empty();
+        return widget.suggestions.where((s) => s.toLowerCase().contains(q) && s.toLowerCase() != q).take(6);
+      },
+      onSelected: widget.onSelected,
+      fieldViewBuilder: (context, controller, focus, onSubmit) => TextFormField(
+        controller: controller,
+        focusNode: focus,
+        textCapitalization: TextCapitalization.words,
+        decoration: InputDecoration(labelText: widget.label, hintText: widget.hint, prefixIcon: widget.icon == null ? null : Icon(widget.icon)),
+        validator: widget.validator,
+        onFieldSubmitted: (_) => onSubmit(),
+      ),
+      optionsViewBuilder: (context, onSelect, options) => Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          elevation: 6,
+          color: p.surface,
+          borderRadius: BorderRadius.circular(16),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 260, maxWidth: 420),
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              shrinkWrap: true,
+              children: [
+                for (final o in options)
+                  ListTile(
+                    dense: true,
+                    leading: Icon(Icons.history_rounded, size: 18, color: p.muted),
+                    title: Text(o, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    onTap: () => onSelect(o),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Two form fields side by side, stacked when the screen is too narrow for
+/// their labels.
+class FieldPair extends StatelessWidget {
+  const FieldPair(this.first, this.second, {super.key, this.firstFlex = 1, this.secondFlex = 1});
+  final Widget first;
+  final Widget second;
+  final int firstFlex;
+  final int secondFlex;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, c) => c.maxWidth < 460
+            ? Column(children: [first, const SizedBox(height: 12), second])
+            : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(flex: firstFlex, child: first),
+                const SizedBox(width: 10),
+                Expanded(flex: secondFlex, child: second),
+              ]),
+      );
+}
+
+/// Small key/value column used in card footers.
+class KeyValue extends StatelessWidget {
+  const KeyValue(this.label, this.value, {super.key, this.color, this.end = false});
+  final String label;
+  final String value;
+  final Color? color;
+  final bool end;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: end ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
+        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: context.pal.muted, fontSize: 11.5)),
+        Text(value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: color, fontFeatures: const [FontFeature.tabularFigures()])),
+      ]);
 }
 
 // ── Dialog / feedback helpers ─────────────────────────────────────────────
