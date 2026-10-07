@@ -6,20 +6,20 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
 
+import '../core/env.dart';
+
 /// Backs the SQLite file up to the hidden, app-private `appDataFolder` of the
 /// owner's own Google Drive. Nothing is visible to other apps, and nothing
 /// leaves the owner's account.
 ///
-/// OAuth client ids are injected at build time:
-///   flutter run --dart-define=GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
-///               --dart-define=GOOGLE_SERVER_CLIENT_ID=yyy.apps.googleusercontent.com
+/// OAuth client ids come from `.env` (GOOGLE_CLIENT_ID, GOOGLE_SERVER_CLIENT_ID).
 /// See README.md → "Google Drive setup".
 class DriveBackup {
   DriveBackup._();
   static final instance = DriveBackup._();
 
-  static const _clientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
-  static const _serverClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+  static const _clientId = Env.googleClientId;
+  static const _serverClientId = Env.googleServerClientId;
   static const _scopes = [drive.DriveApi.driveAppdataScope];
   static const _prefix = 'garikhata-backup-';
   static const keepLatest = 10;

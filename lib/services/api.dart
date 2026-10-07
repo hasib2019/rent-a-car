@@ -1,22 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-/// Where the GariKhata backend lives. Override per build:
-///   flutter run --dart-define=API_BASE_URL=https://api.example.com
-/// `API_BASE_URL=origin` makes a web build talk to the server it is served
-/// from (the backend hosts the web app under /app/). Without it, local
-/// development defaults are used (the Android emulator reaches the host
-/// machine through 10.0.2.2).
-String apiBaseUrl() {
-  const fromEnv = String.fromEnvironment('API_BASE_URL');
-  if (fromEnv == 'origin' && kIsWeb) return Uri.base.origin;
-  if (fromEnv.isNotEmpty && fromEnv != 'origin') return fromEnv.endsWith('/') ? fromEnv.substring(0, fromEnv.length - 1) : fromEnv;
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8001';
-  return 'http://localhost:8001';
-}
+import '../core/env.dart';
 
 /// A failed API call, with Laravel's field errors when there are any.
 class ApiException implements Exception {
@@ -48,9 +35,7 @@ class ApiClient {
   final Map<String, String> Function() headers;
   final http.Client _http = http.Client();
 
-  static const _timeout = Duration(seconds: 20);
-
-  Uri _uri(String path) => Uri.parse('${apiBaseUrl()}/api/v1/$path');
+  Uri _uri(String path) => Uri.parse('${Env.apiBaseUrl}/api/v1/$path');
 
   Future<Map<String, dynamic>> get(String path) => _send('GET', path);
   Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) => _send('POST', path, body);
@@ -68,7 +53,7 @@ class ApiClient {
 
     final http.Response res;
     try {
-      res = await http.Response.fromStream(await _http.send(request).timeout(_timeout));
+      res = await http.Response.fromStream(await _http.send(request).timeout(Env.apiTimeout));
     } on TimeoutException {
       throw ApiException(0, 'timeout');
     } catch (_) {
