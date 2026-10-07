@@ -30,12 +30,30 @@ Built with Flutter for Android, iOS, web, macOS, Windows and Linux. Data lives i
 ## Run
 
 ```bash
+cp .env.example .env                                  # once: app settings
 flutter pub get
-flutter run                 # phone / emulator
-flutter run -d chrome       # web
-flutter run -d macos        # desktop
-flutter test                # unit + repository tests
+flutter run --dart-define-from-file=.env              # phone / emulator
+flutter run --dart-define-from-file=.env -d chrome    # web
+flutter run --dart-define-from-file=.env -d macos     # desktop
+flutter test                                          # unit + repository tests
 ```
+
+In VS Code, the Run and Debug configs in `.vscode/launch.json` pass `.env` for you.
+
+## Settings (`.env`)
+
+Every build-time setting lives in `.env` in the project root (git-ignored; `.env.example` is the template). Flutter reads it through `--dart-define-from-file`, so no package is needed. The app reads all of it through one class, `lib/core/env.dart`. Add a new key in three places: `.env.example`, `.env` and `Env`.
+
+| Key | What it does |
+|---|---|
+| `API_BASE_URL` | Backend address. `http://localhost:8001` works for web, desktop and the Android emulator (rewritten to `10.0.2.2`). On a real phone, use the computer's LAN IP. For production, use `https://…`. To build the web app the backend serves at `/app/`, use `origin`. |
+| `API_TIMEOUT_SECONDS` | Seconds before an API call counts as offline (default 20). |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_SERVER_CLIENT_ID` | OAuth client IDs for Drive backup (see Google Drive setup below). |
+
+* Values are compiled into the app. Never put a server secret here.
+* After you change a value, restart the app. Hot reload does not pick it up.
+* `--dart-define=KEY=value` overrides the same key in the file, for example `--dart-define=API_BASE_URL=origin` for the web build.
+* Debug Android builds allow plain HTTP to any host, so a LAN IP works. Release builds allow plain HTTP only to `localhost` and `10.0.2.2` (`android/app/src/main/res/xml/network_security_config.xml`).
 
 ## Accounts, packages and the admin backend
 
@@ -48,20 +66,19 @@ The app now requires an account. After onboarding, owners log in or register: na
 
 The backend also serves the public **website** at `/`, which uses the app's design. Its **Login** opens the admin panel, and the web app is hosted at `/app/`.
 
-Run the backend (see [backend/README.md](backend/README.md)), then point the app at it:
+Run the backend (see `../rent-a-car owner-backend/README.md`), then point the app at it with `API_BASE_URL` in `.env`:
 
 ```bash
-cd backend && php artisan serve --host=0.0.0.0 --port=8001     # API + admin at /admin
-flutter run                                                    # emulator → http://10.0.2.2:8001
-flutter run -d chrome                                          # web → http://localhost:8001
-flutter build apk --release --dart-define=API_BASE_URL=https://api.your-domain.com
+php artisan serve --host=0.0.0.0 --port=8001               # in the backend folder: API + admin at /admin
+flutter run --dart-define-from-file=.env                   # API_BASE_URL=http://localhost:8001 (emulator → 10.0.2.2)
+flutter build apk --release --dart-define-from-file=.env   # with API_BASE_URL=https://api.your-domain.com
 ```
 
 ## Project layout
 
 ```
 lib/
-  core/        theme (design tokens), l10n (bn/en strings), format (৳, lakh, Bangla digits), catalog (vehicle types, categories, papers)
+  core/        env (.env settings), theme (design tokens), l10n (bn/en strings), format (৳, lakh, Bangla digits), catalog (vehicle types, categories, papers)
   data/        models, repository (all SQL), demo_seed, db_factory_{io,web} (sqflite / ffi / wasm)
   services/    settings (shared_preferences), drive_backup (Google Drive), local_backup (file picker)
   state/       app_state (ChangeNotifier + revision counter)
@@ -96,11 +113,11 @@ Backups use the `drive.appdata` scope. That gives a hidden folder that only this
    * **Web application**: used by web, and as `serverClientId` on Android. Add `http://localhost:PORT` and your domain as authorised JavaScript origins.
    * **Android**: package `com.garikhata.gari_khata` and the SHA-1 of your signing key (`cd android && ./gradlew signingReport`).
    * **iOS / macOS**: bundle id `com.garikhata.gariKhata`.
-4. Pass the IDs at build time:
+4. Put the IDs in `.env`:
 
 ```bash
-flutter run --dart-define=GOOGLE_CLIENT_ID=<web-or-ios-client-id> \
-            --dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>
+GOOGLE_CLIENT_ID=<web-or-ios-client-id>
+GOOGLE_SERVER_CLIENT_ID=<web-client-id>
 ```
 
 5. **iOS/macOS only**: add the iOS client ID to `ios/Runner/Info.plist` as `GIDClientID`, and its reversed form as a URL scheme (`CFBundleURLTypes`). This is described in the [google_sign_in_ios README](https://pub.dev/packages/google_sign_in_ios).
@@ -126,8 +143,8 @@ SHA-256: C7:31:82:67:F7:25:03:E1:EB:8B:8D:2E:A2:E8:74:C7:A2:D5:89:68:A1:27:F1:70
 Build:
 
 ```bash
-flutter build apk --release                  # universal APK
-flutter build apk --release --split-per-abi  # smaller per-CPU APKs
+flutter build apk --release --dart-define-from-file=.env                  # universal APK
+flutter build apk --release --dart-define-from-file=.env --split-per-abi  # smaller per-CPU APKs
 ```
 
 For the Play Store, build an App Bundle (`flutter build appbundle`) and decide whether this key becomes the upload key or a new one is created.
