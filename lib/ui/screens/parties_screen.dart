@@ -6,9 +6,14 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../widgets/common.dart';
 import 'trip_screens.dart';
+import '../routes.dart';
+import '../../services/access.dart';
+import '../widgets/access_gate.dart';
 
-Future<void> openParties(BuildContext context) =>
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PartiesScreen()));
+Future<void> openParties(BuildContext context) async {
+  if (!await requireFeature(context, Feature.parties) || !context.mounted) return;
+  await Navigator.of(context).push(AppRoute(builder: (_) => const PartiesScreen()));
+}
 
 /// Every client the vehicles have worked for, and what each still owes.
 class PartiesScreen extends StatelessWidget {
@@ -83,7 +88,7 @@ class _PartyCard extends StatelessWidget {
     final initials = Driver(name: party.name).initials;
     return Panel(
       padding: const EdgeInsets.all(14),
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PartyDetailScreen(name: party.name))),
+      onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => PartyDetailScreen(name: party.name))),
       child: Row(children: [
         Avatar(name: party.name, initials: initials, size: 48),
         const SizedBox(width: 12),

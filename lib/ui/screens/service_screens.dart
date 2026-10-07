@@ -9,14 +9,20 @@ import '../../state/app_state.dart';
 import '../widgets/common.dart';
 import 'maintenance_screen.dart';
 import 'vehicle_screens.dart';
+import '../routes.dart';
+import '../../services/access.dart';
+import '../widgets/access_gate.dart';
 
-Future<void> openVisitForm(BuildContext context, {int? vehicleId}) => Navigator.of(context).push(MaterialPageRoute(
-      fullscreenDialog: true,
-      builder: (_) => VisitFormScreen(vehicleId: vehicleId),
-    ));
+Future<void> openVisitForm(BuildContext context, {int? vehicleId}) async {
+  if (!await requireFeature(context, Feature.serviceVisits) || !context.mounted) return;
+  await Navigator.of(context).push(AppRoute(
+    fullscreenDialog: true,
+    builder: (_) => VisitFormScreen(vehicleId: vehicleId),
+  ));
+}
 
 Future<void> openVisit(BuildContext context, int visitId) =>
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitDetailScreen(visitId: visitId)));
+    Navigator.of(context).push(AppRoute(builder: (_) => VisitDetailScreen(visitId: visitId)));
 
 /// "Garage visit or a single part?" — the + on the parts screen.
 Future<void> showMaintenanceAdd(BuildContext context, {int? vehicleId}) {
@@ -234,7 +240,7 @@ class VisitDetailScreen extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: InkWell(
-                        onTap: vehicle == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleDetailScreen(vehicleId: vehicle.id!))),
+                        onTap: vehicle == null ? null : () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: vehicle.id!))),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(vehicle?.name ?? '', style: const TextStyle(color: white, fontWeight: FontWeight.w700)),
                           if (visit.odometer != null) Text('${f.number(visit.odometer!)} ${s.km}', style: TextStyle(color: dim, fontSize: 12.5)),
@@ -322,7 +328,7 @@ class VisitDetailScreen extends StatelessWidget {
               IconButton(
                 tooltip: s.edit,
                 icon: const Icon(Icons.edit_rounded),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VisitFormScreen(visit: visit, parts: parts))),
+                onPressed: () => Navigator.of(context).push(AppRoute(builder: (_) => VisitFormScreen(visit: visit, parts: parts))),
               ),
               IconButton(tooltip: s.delete, icon: Icon(Icons.delete_outline_rounded, color: p.expense), onPressed: () => _delete(context)),
               const SizedBox(width: 8),

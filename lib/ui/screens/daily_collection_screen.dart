@@ -8,6 +8,14 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
 import '../widgets/common.dart';
+import '../../services/access.dart';
+import '../widgets/access_gate.dart';
+import '../routes.dart';
+
+Future<void> openDailyCollection(BuildContext context) async {
+  if (!await requireFeature(context, Feature.dailyCollection) || !context.mounted) return;
+  await Navigator.of(context).push(AppRoute(builder: (_) => const DailyCollectionScreen()));
+}
 
 class _Row {
   _Row(this.vehicle, this.existing, String Function(Object) digits)

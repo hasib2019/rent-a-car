@@ -8,6 +8,8 @@ import '../../data/models.dart';
 import '../../state/app_state.dart';
 import '../widgets/common.dart';
 import 'vehicle_screens.dart';
+import '../../services/access.dart';
+import '../widgets/access_gate.dart';
 
 /// All paper expiry dates across the fleet, soonest first.
 class DocumentsScreen extends StatelessWidget {
@@ -103,7 +105,8 @@ class PaperTile extends StatelessWidget {
   }
 }
 
-Future<void> showPaperSheet(BuildContext context, {Paper? paper, int? vehicleId}) {
+Future<void> showPaperSheet(BuildContext context, {Paper? paper, int? vehicleId}) async {
+  if (!await requireFeature(context, Feature.papers) || !context.mounted) return;
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,

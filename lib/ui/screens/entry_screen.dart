@@ -14,6 +14,10 @@ import 'maintenance_screen.dart';
 import 'parties_screen.dart';
 import 'service_screens.dart';
 import 'trip_screens.dart';
+import '../routes.dart';
+import '../../services/access.dart';
+import '../../services/analytics.dart';
+import '../widgets/access_gate.dart';
 
 enum EntryMode { fuel, expense, trip, due, joma }
 
@@ -35,17 +39,24 @@ Future<void> openEntryEditor(BuildContext context, LedgerEntry e) async {
       IncomeKind.due => EntryMode.due,
       _ => EntryMode.joma,
     };
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => EntryScreen(mode: mode, income: i)));
+    await Navigator.of(context).push(AppRoute(builder: (_) => EntryScreen(mode: mode, income: i)));
   } else {
     final x = await repo.expense(e.id);
     if (x == null || !context.mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
+    await Navigator.of(context).push(AppRoute(
         builder: (_) => EntryScreen(mode: x.category == ExpenseCategory.fuel ? EntryMode.fuel : EntryMode.expense, expense: x)));
   }
 }
 
-Future<void> openEntry(BuildContext context, EntryMode mode, {int? vehicleId, int? driverId}) {
-  return Navigator.of(context).push(MaterialPageRoute(
+Future<void> openEntry(BuildContext context, EntryMode mode, {int? vehicleId, int? driverId}) async {
+  final feature = switch (mode) {
+    EntryMode.fuel || EntryMode.expense => Feature.fuelExpense,
+    EntryMode.due => Feature.driverDues,
+    EntryMode.trip => Feature.trips,
+    EntryMode.joma => Feature.dailyCollection,
+  };
+  if (!await requireFeature(context, feature) || !context.mounted) return;
+  await Navigator.of(context).push(AppRoute(
     fullscreenDialog: true,
     builder: (_) => EntryScreen(mode: mode, vehicleId: vehicleId, driverId: driverId),
   ));
@@ -53,6 +64,7 @@ Future<void> openEntry(BuildContext context, EntryMode mode, {int? vehicleId, in
 
 /// Bottom sheet with every kind of entry an owner records.
 Future<void> showQuickAdd(BuildContext context) {
+  Analytics.instance.screen('quick_add');
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -87,7 +99,7 @@ Future<void> showQuickAdd(BuildContext context) {
                 child: Text(s.quickAdd, style: ctx.text.headlineSmall),
               ),
               Pressable(
-                onTap: () => go(() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DailyCollectionScreen()))),
+                onTap: () => go(() => openDailyCollection(context)),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(color: p.accent, borderRadius: BorderRadius.circular(kRadius)),

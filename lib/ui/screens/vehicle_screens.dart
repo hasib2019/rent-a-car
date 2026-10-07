@@ -17,6 +17,14 @@ import 'entry_screen.dart';
 import 'maintenance_screen.dart';
 import 'service_screens.dart';
 import 'trip_screens.dart';
+import '../routes.dart';
+import '../widgets/access_gate.dart';
+
+/// Opens the add-vehicle form if the account has room for another vehicle.
+Future<void> openNewVehicle(BuildContext context) async {
+  if (!await requireVehicleSlot(context, context.read<AppState>().vehicles.length) || !context.mounted) return;
+  await Navigator.of(context).push(AppRoute(builder: (_) => const VehicleFormScreen()));
+}
 
 enum FleetTab { vehicles, drivers }
 
@@ -49,9 +57,7 @@ class _FleetScreenState extends State<FleetScreen> {
                 icon: Icons.add_rounded,
                 filled: true,
                 tooltip: _tab == FleetTab.vehicles ? s.addVehicle : s.addDriver,
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => _tab == FleetTab.vehicles ? const VehicleFormScreen() : const DriverFormScreen(),
-                )),
+                onTap: () => _tab == FleetTab.vehicles ? openNewVehicle(context) : openNewDriver(context),
               ),
             ]),
           ),
@@ -90,7 +96,7 @@ class _VehicleList extends StatelessWidget {
         icon: Icons.directions_car_filled_rounded,
         title: s.noVehicles,
         action: FilledButton.icon(
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VehicleFormScreen())),
+          onPressed: () => openNewVehicle(context),
           icon: const Icon(Icons.add_rounded),
           label: Text(s.addVehicle),
         ),
@@ -138,7 +144,7 @@ class VehicleCard extends StatelessWidget {
     final profit = stat?.profit ?? 0;
 
     return Panel(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
+      onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           TypeBadge(v.type, size: 50),
@@ -247,7 +253,7 @@ class VehicleDetailScreen extends StatelessWidget {
           IconButton(
             tooltip: s.edit,
             icon: const Icon(Icons.edit_rounded),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleFormScreen(vehicle: v))),
+            onPressed: () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleFormScreen(vehicle: v))),
           ),
           const SizedBox(width: 8),
         ],
@@ -299,7 +305,7 @@ class VehicleDetailScreen extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: InkWell(
-                          onTap: driver == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DriverDetailScreen(driverId: driver.id!))),
+                          onTap: driver == null ? null : () => Navigator.of(context).push(AppRoute(builder: (_) => DriverDetailScreen(driverId: driver.id!))),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(s.driver, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11.5)),
                             Text(driver?.name ?? s.noDriver, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
@@ -634,7 +640,7 @@ class _InfoCard extends StatelessWidget {
         Row(children: [
           Expanded(child: Text(s.vehicleInfo, style: const TextStyle(fontWeight: FontWeight.w700))),
           TextButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleFormScreen(vehicle: v))),
+            onPressed: () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleFormScreen(vehicle: v))),
             icon: const Icon(Icons.edit_rounded, size: 18),
             label: Text(s.edit),
           ),
@@ -669,7 +675,7 @@ class _TripsCard extends StatelessWidget {
           Expanded(child: Text(s.recentTrips, style: const TextStyle(fontWeight: FontWeight.w700))),
           if (trips.isNotEmpty)
             TextButton(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => TripsScreen(vehicleId: vehicleId))),
+              onPressed: () => Navigator.of(context).push(AppRoute(builder: (_) => TripsScreen(vehicleId: vehicleId))),
               child: Text(s.seeAll),
             ),
           TextButton.icon(
@@ -750,6 +756,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
+    if (widget.vehicle == null && !await requireVehicleSlot(context, context.read<AppState>().vehicles.length)) return;
+    if (!mounted) return;
     final app = context.read<AppState>();
     final s = context.s;
     final v = Vehicle(
@@ -952,7 +960,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                   icon: Icons.add_rounded,
                   selected: false,
                   onTap: () async {
-                    final id = await Navigator.of(context).push<int>(MaterialPageRoute(builder: (_) => const DriverFormScreen()));
+                    final id = await openNewDriver(context);
                     if (id != null) setState(() => _driverId = id);
                   },
                 ),

@@ -11,6 +11,7 @@ import '../widgets/charts.dart';
 import '../widgets/common.dart';
 import 'driver_screens.dart';
 import 'vehicle_screens.dart';
+import '../routes.dart';
 
 enum _Range { thisMonth, lastMonth, thisYear, allTime, custom }
 
@@ -188,7 +189,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       for (final dr in owing)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DriverDetailScreen(driverId: dr.id!))),
+                          onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => DriverDetailScreen(driverId: dr.id!))),
                           leading: Avatar(name: dr.name, initials: dr.initials, size: 40),
                           title: Text(dr.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                           subtitle: Text(app.vehicleOfDriver(dr.id!)?.name ?? '', style: TextStyle(color: p.muted, fontSize: 12.5)),
@@ -321,7 +322,7 @@ class _Leaderboard extends StatelessWidget {
         for (var i = 0; i < rows.length; i++)
           InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleDetailScreen(vehicleId: rows[i].$1.id!))),
+            onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: rows[i].$1.id!))),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(children: [

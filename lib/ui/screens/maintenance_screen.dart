@@ -13,11 +13,17 @@ import '../../state/app_state.dart';
 import '../widgets/common.dart';
 import 'service_screens.dart';
 import 'vehicle_screens.dart';
+import '../routes.dart';
+import '../../services/access.dart';
+import '../widgets/access_gate.dart';
 
-Future<void> openPartForm(BuildContext context, {Part? part, int? vehicleId}) => Navigator.of(context).push(MaterialPageRoute(
-      fullscreenDialog: part == null,
-      builder: (_) => PartFormScreen(part: part, vehicleId: vehicleId),
-    ));
+Future<void> openPartForm(BuildContext context, {Part? part, int? vehicleId}) async {
+  if (!await requireFeature(context, Feature.partsTracking) || !context.mounted) return;
+  await Navigator.of(context).push(AppRoute(
+    fullscreenDialog: part == null,
+    builder: (_) => PartFormScreen(part: part, vehicleId: vehicleId),
+  ));
+}
 
 /// Parts fitted in a garage visit are edited as part of that visit.
 Future<void> openFitting(BuildContext context, Part part) =>
@@ -284,7 +290,7 @@ class _ByVehicle extends StatelessWidget {
         for (final (v, amount) in rows)
           InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
+            onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(children: [

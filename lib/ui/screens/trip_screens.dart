@@ -10,14 +10,22 @@ import '../../state/app_state.dart';
 import '../widgets/common.dart';
 import 'parties_screen.dart';
 import 'vehicle_screens.dart';
+import '../routes.dart';
+import '../../services/access.dart';
+import '../widgets/access_gate.dart';
 
-Future<void> openTripForm(BuildContext context, {int? vehicleId}) => Navigator.of(context).push(MaterialPageRoute(
-      fullscreenDialog: true,
-      builder: (_) => TripFormScreen(vehicleId: vehicleId),
-    ));
+Future<void> openTripForm(BuildContext context, {int? vehicleId}) async {
+  if (!await requireFeature(context, Feature.trips) || !context.mounted) return;
+  await Navigator.of(context).push(AppRoute(
+    fullscreenDialog: true,
+    builder: (_) => TripFormScreen(vehicleId: vehicleId),
+  ));
+}
 
-Future<void> openTrip(BuildContext context, int tripId) =>
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => TripDetailScreen(tripId: tripId)));
+Future<void> openTrip(BuildContext context, int tripId) async {
+  if (!await requireFeature(context, Feature.trips) || !context.mounted) return;
+  await Navigator.of(context).push(AppRoute(builder: (_) => TripDetailScreen(tripId: tripId)));
+}
 
 /// "12 Oct" or "12 – 14 Oct" for multi-day trips.
 String tripDates(Fmt f, Trip t) {
@@ -361,7 +369,7 @@ class TripDetailScreen extends StatelessWidget {
               IconButton(
                 tooltip: s.edit,
                 icon: const Icon(Icons.edit_rounded),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => TripFormScreen(trip: trip, costs: costs, payments: payments))),
+                onPressed: () => Navigator.of(context).push(AppRoute(builder: (_) => TripFormScreen(trip: trip, costs: costs, payments: payments))),
               ),
               IconButton(tooltip: s.delete, icon: Icon(Icons.delete_outline_rounded, color: p.expense), onPressed: () => _delete(context)),
               const SizedBox(width: 8),
@@ -500,7 +508,7 @@ class _TripHero extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: InkWell(
-                    onTap: v == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
+                    onTap: v == null ? null : () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(v?.name ?? '', style: const TextStyle(color: white, fontWeight: FontWeight.w700)),
                       Text(driver?.name ?? s.noDriver, style: TextStyle(color: dim, fontSize: 12.5)),

@@ -19,6 +19,11 @@ import 'screens/settings_screen.dart';
 import 'screens/trip_screens.dart';
 import 'screens/vehicle_screens.dart';
 import 'widgets/common.dart';
+import 'routes.dart';
+import '../services/access.dart';
+import '../services/analytics.dart';
+import '../services/auth.dart';
+import 'widgets/access_gate.dart';
 
 enum _Tab { home, fleet, trips, parts, ledger, reports, settings }
 
@@ -40,9 +45,23 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   _Tab _tab = _Tab.home;
 
+  /// Tabs that a package can switch off.
+  static const _features = {_Tab.trips: Feature.trips, _Tab.parts: Feature.partsTracking, _Tab.reports: Feature.reports};
+
+  static const _screenNames = {
+    _Tab.home: 'home',
+    _Tab.fleet: 'fleet',
+    _Tab.trips: 'trips',
+    _Tab.parts: 'maintenance',
+    _Tab.ledger: 'ledger',
+    _Tab.reports: 'reports',
+    _Tab.settings: 'settings',
+  };
+
   @override
   void initState() {
     super.initState();
+    Analytics.instance.screen('home');
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoBackup());
   }
 
@@ -66,11 +85,15 @@ class _AppShellState extends State<AppShell> {
   /// Phones get four tabs around the + button; trips and parts open as pages.
   List<_Tab> _tabs(bool wide) => wide ? _Tab.values : const [_Tab.home, _Tab.fleet, _Tab.ledger, _Tab.reports];
 
-  void _open(_Tab tab) {
+  Future<void> _open(_Tab tab) async {
+    final feature = _features[tab];
+    if (feature != null && !await requireFeature(context, feature)) return;
+    if (!mounted) return;
     final wide = MediaQuery.sizeOf(context).width >= 900;
     if (_tabs(wide).contains(tab)) {
       HapticFeedback.selectionClick();
       setState(() => _tab = tab);
+      Analytics.instance.screen(_screenNames[tab]!);
       return;
     }
     final Widget page = switch (tab) {
@@ -78,7 +101,7 @@ class _AppShellState extends State<AppShell> {
       _Tab.parts => const MaintenanceScreen(),
       _ => const SettingsScreen(),
     };
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    Navigator.of(context).push(AppRoute(builder: (_) => page));
   }
 
   _NavItem _item(_Tab t, S s) => switch (t) {
@@ -111,7 +134,9 @@ class _AppShellState extends State<AppShell> {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final tabs = _tabs(wide);
     final items = [for (final t in tabs) _item(t, s)];
-    final index = tabs.contains(_tab) ? tabs.indexOf(_tab) : 0;
+    final access = context.watch<AuthService>().access;
+    final locked = _features[_tab] != null && !access.can(_features[_tab]!);
+    final index = tabs.contains(_tab) && !locked ? tabs.indexOf(_tab) : 0;
     void go(int i) => _open(tabs[i]);
     final body = IndexedStack(index: index, children: [for (final t in tabs) _page(t)]);
 

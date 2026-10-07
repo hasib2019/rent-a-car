@@ -18,6 +18,7 @@ import 'parties_screen.dart';
 import 'settings_screen.dart';
 import 'trip_screens.dart';
 import 'vehicle_screens.dart';
+import '../routes.dart';
 
 class _HomeData {
   _HomeData(this.today, this.month, this.spark, this.stats, this.recent, this.papers, this.trips, this.partsDue, this.serviceDue, this.parties);
@@ -97,7 +98,7 @@ class HomeScreen extends StatelessWidget {
           RoundIconButton(
             icon: Icons.tune_rounded,
             tooltip: s.settings,
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => const SettingsScreen())),
           ),
       ]),
     );
@@ -231,7 +232,7 @@ class _TodayHero extends StatelessWidget {
                 ),
               ),
               Pressable(
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DailyCollectionScreen())),
+                onTap: () => openDailyCollection(context),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(color: p.accent, borderRadius: BorderRadius.circular(16)),
@@ -334,7 +335,7 @@ class _Attention extends StatelessWidget {
           title: s.licensesExpiring,
           value: f.digits(licences.length),
           lines: [for (final d in licences.take(3)) '${d.name} · ${s.expiresIn(d.licenseDaysLeft!)}'],
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DriverDetailScreen(driverId: licences.first.id!))),
+          onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => DriverDetailScreen(driverId: licences.first.id!))),
         ),
       if (owing.isNotEmpty)
         _AttentionCard(
@@ -343,7 +344,7 @@ class _Attention extends StatelessWidget {
           title: s.driverDues,
           value: f.money(app.totalDue),
           lines: [for (final d in owing.take(3)) '${d.name} · ${f.money(app.dues[d.id]!)}'],
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DriverDetailScreen(driverId: owing.first.id!))),
+          onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => DriverDetailScreen(driverId: owing.first.id!))),
         ),
       if (data.papers.isNotEmpty)
         _AttentionCard(
@@ -354,7 +355,7 @@ class _Attention extends StatelessWidget {
           lines: [
             for (final pp in data.papers.take(3)) '${app.vehicle(pp.vehicleId)?.name ?? ''} · ${pp.type.label(s)} · ${s.expiresIn(pp.daysLeft)}',
           ],
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DocumentsScreen())),
+          onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => const DocumentsScreen())),
         ),
       if (parts.isNotEmpty)
         _AttentionCard(
@@ -571,7 +572,7 @@ class _FleetStrip extends StatelessWidget {
             final profit = st?.profit ?? 0;
             final driver = app.driverOf(v);
             return Pressable(
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
+              onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
               child: Container(
                 width: 210,
                 padding: const EdgeInsets.all(16),
@@ -679,7 +680,7 @@ class _WelcomeCard extends StatelessWidget {
               Wrap(spacing: 10, runSpacing: 10, children: [
                 FilledButton.icon(
                   style: FilledButton.styleFrom(backgroundColor: p.accent, foregroundColor: p.onAccent),
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VehicleFormScreen())),
+                  onPressed: () => openNewVehicle(context),
                   icon: const Icon(Icons.add_rounded),
                   label: Text(s.addFirstVehicle),
                 ),

@@ -1,0 +1,125 @@
+@import 'tailwindcss';
+
+@source '../views/site/**/*.blade.php';
+@source '../js/**/*.js';
+
+/* Same faces as the app: Anek Bangla + Material Symbols Rounded (self-hosted). */
+@font-face { font-family: 'Anek Bangla'; src: url('/fonts/AnekBangla-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Anek Bangla'; src: url('/fonts/AnekBangla-Medium.ttf') format('truetype'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Anek Bangla'; src: url('/fonts/AnekBangla-SemiBold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Anek Bangla'; src: url('/fonts/AnekBangla-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Anek Bangla'; src: url('/fonts/AnekBangla-ExtraBold.ttf') format('truetype'); font-weight: 800; font-display: swap; }
+@font-face { font-family: 'Material Symbols Rounded'; src: url('/fonts/material-symbols-rounded.woff2') format('woff2'); font-weight: 300 700; font-display: block; }
+
+/* "Dhaka Night" — the app's palette. */
+@theme {
+    --font-sans: 'Anek Bangla', ui-sans-serif, system-ui, sans-serif;
+
+    --color-paper: #f3f1ec;
+    --color-paper-2: #eae7e0;
+    --color-line: #ddd9cf;
+    --color-ink: #121418;
+    --color-ink-2: #1b1f25;
+    --color-ink-3: #2a2f37;
+    --color-muted: #6c717a;
+    --color-lime: #d4ff3a;
+    --color-lime-2: #c2ee22;
+    --color-cng: #22c17a;
+    --color-car: #4c7dff;
+    --color-pickup: #ff8a3d;
+    --color-micro: #a06bff;
+    --color-bus: #ff4f7b;
+    --color-bike: #14b8c9;
+    --color-income: #14a86b;
+    --color-expense: #e5484d;
+    --color-warn: #f2a71b;
+
+    --radius-4xl: 2rem;
+    --radius-5xl: 2.5rem;
+
+    --animate-float: float 7s ease-in-out infinite;
+    --animate-float-slow: float 9s ease-in-out infinite;
+    --animate-marquee: marquee 28s linear infinite;
+
+    @keyframes float {
+        0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+        50% { transform: translateY(-12px) rotate(var(--r, 0deg)); }
+    }
+    @keyframes marquee {
+        to { transform: translateX(-50%); }
+    }
+}
+
+@layer base {
+    html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+    body { @apply bg-paper text-ink antialiased; font-feature-settings: 'tnum'; }
+    ::selection { background: var(--color-lime); color: var(--color-ink); }
+}
+
+@utility btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-base font-bold transition duration-200 active:scale-[.97];
+}
+
+@layer components {
+    .ms {
+        font-family: 'Material Symbols Rounded';
+        font-weight: 500;
+        font-style: normal;
+        font-size: 1.4em;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        direction: ltr;
+        font-variation-settings: 'FILL' 1, 'wght' 500, 'opsz' 24;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* Dashed lane markings used on dark hero surfaces in the app. */
+    .lanes {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg stroke='%23ffffff' stroke-opacity='.06' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M18 0 L-12 52'/%3E%3Cpath d='M48 0 L18 52'/%3E%3Cpath d='M78 0 L48 52'/%3E%3Cpath d='M108 0 L78 52'/%3E%3Cpath d='M138 0 L108 52'/%3E%3Cpath d='M-12 68 L-42 120'/%3E%3Cpath d='M18 68 L-12 120'/%3E%3Cpath d='M48 68 L18 120'/%3E%3Cpath d='M78 68 L48 120'/%3E%3Cpath d='M108 68 L78 120'/%3E%3Cpath d='M138 68 L108 120'/%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    /* Bangladeshi number plate, like the app's NumberPlate widget. */
+    .plate {
+        @apply inline-flex items-stretch overflow-hidden rounded-lg border-2 border-ink bg-[#fdfdf8] text-ink shadow-sm;
+    }
+    .plate-band { @apply w-1.5; }
+    .plate-body { @apply flex flex-col items-center px-2.5 py-0.5 leading-tight; }
+    .plate-top { @apply text-[10px] font-semibold; }
+    .plate-num { @apply text-sm font-extrabold tracking-wide; }
+
+    .btn-lime { @apply btn bg-lime text-ink hover:bg-lime-2 shadow-[0_10px_30px_-10px_rgba(212,255,58,.7)]; }
+    .btn-ink { @apply btn bg-ink text-paper hover:bg-ink-2; }
+    .btn-ghost { @apply btn border border-white/15 text-white hover:bg-white/10; }
+    .btn-outline { @apply btn border border-line bg-white text-ink hover:border-ink; }
+
+    .card { @apply rounded-4xl border border-line bg-white; }
+    .kicker { @apply inline-flex items-center gap-2 rounded-full bg-lime px-3.5 py-1.5 text-sm font-bold text-ink; }
+    .section-title { @apply text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl; letter-spacing: -0.02em; line-height: 1.12; }
+
+    .phone {
+        @apply relative rounded-[2.6rem] border-[10px] border-ink bg-ink shadow-[0_40px_80px_-30px_rgba(18,20,24,.55)];
+    }
+    .phone::before {
+        content: '';
+        @apply absolute left-1/2 top-2 z-10 h-5 w-24 -translate-x-1/2 rounded-full bg-ink;
+    }
+    .phone img { @apply block w-full; }
+
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+    .reveal.is-in { opacity: 1; transform: none; }
+
+    .no-scrollbar { scrollbar-width: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+
+    .field {
+        @apply w-full rounded-2xl border border-line bg-white px-4 py-3.5 pl-12 text-base outline-none transition placeholder:text-muted/70 focus:border-ink focus:ring-4 focus:ring-lime/40;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .animate-float, .animate-float-slow, .animate-marquee { animation: none; }
+}

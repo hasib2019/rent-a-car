@@ -8,6 +8,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../services/settings.dart';
 import '../widgets/common.dart';
+import '../../services/analytics.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -18,21 +19,22 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _page = PageController();
-  final _name = TextEditingController();
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    Analytics.instance.screen('onboarding');
+  }
 
   @override
   void dispose() {
     _page.dispose();
-    _name.dispose();
     super.dispose();
   }
 
-  Future<void> _finish() async {
-    final settings = context.read<Settings>();
-    if (_name.text.trim().isNotEmpty) await settings.setOwnerName(_name.text);
-    await settings.setOnboarded();
-  }
+  /// The owner's name now comes from registration, so onboarding just ends.
+  Future<void> _finish() => context.read<Settings>().setOnboarded();
 
   @override
   Widget build(BuildContext context) {
@@ -84,15 +86,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       Text(title, style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800, height: 1.15)),
                       const SizedBox(height: 10),
                       Text(body, style: TextStyle(color: p.muted, fontSize: 16, height: 1.45)),
-                      if (i == slides.length - 1) ...[
-                        const SizedBox(height: 22),
-                        TextField(
-                          controller: _name,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: InputDecoration(labelText: s.whatsYourName, prefixIcon: const Icon(Icons.person_outline_rounded)),
-                          onSubmitted: (_) => _finish(),
-                        ),
-                      ],
                     ]),
                   );
                 },

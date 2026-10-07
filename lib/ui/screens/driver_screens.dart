@@ -12,6 +12,14 @@ import '../widgets/heatmap.dart';
 import '../widgets/ledger_tile.dart';
 import 'entry_screen.dart';
 import 'vehicle_screens.dart';
+import '../routes.dart';
+import '../widgets/access_gate.dart';
+
+/// Opens the add-driver form if the account has room; returns the new id.
+Future<int?> openNewDriver(BuildContext context) async {
+  if (!await requireDriverSlot(context, context.read<AppState>().drivers.length) || !context.mounted) return null;
+  return Navigator.of(context).push<int>(AppRoute(builder: (_) => const DriverFormScreen()));
+}
 
 class DriverList extends StatelessWidget {
   const DriverList({super.key});
@@ -25,7 +33,7 @@ class DriverList extends StatelessWidget {
         icon: Icons.person_rounded,
         title: s.noDrivers,
         action: FilledButton.icon(
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DriverFormScreen())),
+          onPressed: () => openNewDriver(context),
           icon: const Icon(Icons.add_rounded),
           label: Text(s.addDriver),
         ),
@@ -69,7 +77,7 @@ class DriverCard extends StatelessWidget {
 
     return Panel(
       padding: const EdgeInsets.all(14),
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DriverDetailScreen(driverId: driver.id!))),
+      onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => DriverDetailScreen(driverId: driver.id!))),
       child: Row(children: [
         Avatar(name: driver.name, initials: driver.initials, size: 50),
         const SizedBox(width: 14),
@@ -147,7 +155,7 @@ class DriverDetailScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_rounded),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DriverFormScreen(driver: d))),
+            onPressed: () => Navigator.of(context).push(AppRoute(builder: (_) => DriverFormScreen(driver: d))),
           ),
           const SizedBox(width: 8),
         ],
@@ -175,7 +183,7 @@ class DriverDetailScreen extends StatelessWidget {
                             if (vehicle != null) ...[
                               const SizedBox(height: 6),
                               InkWell(
-                                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VehicleDetailScreen(vehicleId: vehicle.id!))),
+                                onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: vehicle.id!))),
                                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                                   Icon(vehicle.type.icon, size: 16, color: vehicle.type.color),
                                   const SizedBox(width: 6),
@@ -302,6 +310,8 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
+    if (widget.driver == null && !await requireDriverSlot(context, context.read<AppState>().drivers.length)) return;
+    if (!mounted) return;
     final s = context.s;
     final d = Driver(
       id: widget.driver?.id,

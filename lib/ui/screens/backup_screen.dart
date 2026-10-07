@@ -11,6 +11,8 @@ import '../../services/local_backup.dart';
 import '../../services/settings.dart';
 import '../../state/app_state.dart';
 import '../widgets/common.dart';
+import '../../services/access.dart';
+import '../widgets/access_gate.dart';
 
 /// Google Drive (app-private folder) and local-file backup of the SQLite DB.
 class BackupScreen extends StatefulWidget {
@@ -26,6 +28,10 @@ class _BackupScreenState extends State<BackupScreen> {
 
   Future<void> _run(String key, Future<void> Function() action) async {
     if (_busy != null) return;
+    // Drive actions and file actions can be enabled separately per account.
+    final feature = const {'export', 'import'}.contains(key) ? Feature.backupFile : Feature.backupDrive;
+    if (key != 'disconnect' && !await requireFeature(context, feature)) return;
+    if (!mounted) return;
     setState(() => _busy = key);
     try {
       await action();

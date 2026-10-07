@@ -37,6 +37,26 @@ flutter run -d macos        # desktop
 flutter test                # unit + repository tests
 ```
 
+## Accounts, packages and the admin backend
+
+The app now requires an account. After onboarding, owners log in or register: name, username, **email** and **mobile** are required, and business name, district and number of vehicles are optional. There is also a forgot-password flow with a 6-digit code sent by email. The ledger data stays on the phone. The server ([backend/](backend/), Laravel 13 + Filament 5) stores the account, what the account may use, and which screens are opened.
+
+* **Packages**: users without a package get every feature. Once an admin assigns a package, only its features and its vehicle and driver limits apply. The app never shows package names; a locked feature shows a lock sheet with the support call and WhatsApp buttons. See `lib/services/access.dart` and `lib/ui/widgets/access_gate.dart`.
+* **Screen analytics**: every pushed page is an `AppRoute` (`lib/ui/routes.dart`) that reports its screen key. Tabs and sheets report theirs too. Events are queued on the device (so screens opened offline or before login are kept) and sent in batches (`lib/services/analytics.dart`).
+* **Account page** (Settings → My account): edit profile, change password, log out and delete the account. Deleting the account also erases the ledger on the phone, as the Play Store requires.
+* **Server switches**: the admin can force an update, pause the API for maintenance, close registration and set support contacts.
+
+The backend also serves the public **website** at `/`, which uses the app's design. Its **Login** opens the admin panel, and the web app is hosted at `/app/`.
+
+Run the backend (see [backend/README.md](backend/README.md)), then point the app at it:
+
+```bash
+cd backend && php artisan serve --host=0.0.0.0 --port=8001     # API + admin at /admin
+flutter run                                                    # emulator → http://10.0.2.2:8001
+flutter run -d chrome                                          # web → http://localhost:8001
+flutter build apk --release --dart-define=API_BASE_URL=https://api.your-domain.com
+```
+
 ## Project layout
 
 ```
@@ -86,6 +106,31 @@ flutter run --dart-define=GOOGLE_CLIENT_ID=<web-or-ios-client-id> \
 5. **iOS/macOS only**: add the iOS client ID to `ios/Runner/Info.plist` as `GIDClientID`, and its reversed form as a URL scheme (`CFBundleURLTypes`). This is described in the [google_sign_in_ios README](https://pub.dev/packages/google_sign_in_ios).
 
 Until this is configured, the app shows "Google Drive is not configured" and local file backup still works on every platform. Windows and Linux use local file backup only.
+
+## Android signing
+
+Release APKs are signed with a project key so every build (on any machine) can update the installed app:
+
+* `android/keys/garikhata-debug.jks` (alias `garikhata`, RSA 2048, valid ~27 years)
+* `android/key.properties` (path + passwords)
+
+Both are git-ignored. **Back them up privately.** If they are lost, phones that already have the app must uninstall it (and lose local data unless backed up) before installing a new build. If `key.properties` is missing, Gradle falls back to the machine's default debug key.
+
+Certificate fingerprints (also needed for the Android OAuth client in Google Cloud):
+
+```
+SHA-1:   D8:E5:81:0A:EE:AF:ED:24:D4:A3:CB:6D:B8:94:60:8F:04:DF:97:62
+SHA-256: C7:31:82:67:F7:25:03:E1:EB:8B:8D:2E:A2:E8:74:C7:A2:D5:89:68:A1:27:F1:70:EB:D0:B1:73:C8:09:1A:FD
+```
+
+Build:
+
+```bash
+flutter build apk --release                  # universal APK
+flutter build apk --release --split-per-abi  # smaller per-CPU APKs
+```
+
+For the Play Store, build an App Bundle (`flutter build appbundle`) and decide whether this key becomes the upload key or a new one is created.
 
 ## Web: SQLite files
 
