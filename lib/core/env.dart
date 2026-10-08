@@ -20,7 +20,7 @@ abstract final class Env {
 
   /// Where the GariKhata backend lives, without a trailing slash.
   ///
-  /// * empty: the local dev server, `http://localhost:8001`
+  /// * empty: the local dev server, `https://garikhata.etalikhata.com`
   /// * `origin`: a web build talks to the server it is served from (the
   ///   backend hosts the web app under /app/)
   /// * anything else is used as is
@@ -30,7 +30,7 @@ abstract final class Env {
   /// desktop and the emulator. A real phone needs the computer's LAN IP.
   static String get apiBaseUrl {
     if (_apiBaseUrl == 'origin' && kIsWeb) return Uri.base.origin;
-    final raw = _apiBaseUrl.isEmpty || _apiBaseUrl == 'origin' ? 'http://localhost:8001' : _apiBaseUrl;
+    final raw = _apiBaseUrl.isEmpty || _apiBaseUrl == 'origin' ? 'https://garikhata.etalikhata.com' : _apiBaseUrl;
     var uri = Uri.parse(raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw);
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && (uri.host == 'localhost' || uri.host == '127.0.0.1')) {
       uri = uri.replace(host: '10.0.2.2');
