@@ -356,6 +356,11 @@ void main() {
     expect(account.paid, greaterThan(0));
     expect(car.monthlyBudget, 30000);
     expect(CarValue.of(car)!.estimated, isTrue);
+
+    final claim = await repo.officeExpenses(Period.month(DateTime.now().subtract(const Duration(days: 30))), vehicleId: car.id);
+    expect(claim.any((e) => e.category == ExpenseCategory.parking), isTrue);
+    expect(claim.any((e) => e.category == ExpenseCategory.fuel), isTrue);
+    expect(claim.every((e) => e.office), isTrue);
   });
 
   test('export → erase → import restores everything', () async {

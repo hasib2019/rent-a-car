@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/l10n_personal.dart';
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
@@ -176,6 +177,7 @@ class _EntryScreenState extends State<EntryScreen> {
   ExpenseCategory _category = ExpenseCategory.servicing;
   DateTime _date = DateUtils.dateOnly(DateTime.now());
   bool _saving = false;
+  late bool _office = widget.expense?.office ?? false;
   int _shake = 0;
 
   bool get _editing => widget.income != null || widget.expense != null;
@@ -312,6 +314,7 @@ class _EntryScreenState extends State<EntryScreen> {
                 tripId: widget.expense?.tripId,
                 partId: widget.expense?.partId,
                 driverId: widget.expense?.driverId,
+                office: _office,
               )));
         case EntryMode.trip:
           await app.mutate((r) => r.saveIncome(Income(
@@ -423,6 +426,19 @@ class _EntryScreenState extends State<EntryScreen> {
                           for (final c in (app.personal ? ExpenseCategory.personalCosts : ExpenseCategory.values.where((c) => c != ExpenseCategory.fuel)))
                             ChoiceTag(label: c.label(s), icon: c.icon, color: c.color, selected: _category == c, onTap: () => setState(() => _category = c)),
                         ]),
+                        if (app.personal) ...[
+                          const SizedBox(height: 14),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ChoiceTag(
+                              label: s.officeUse,
+                              icon: Icons.work_rounded,
+                              color: p.info,
+                              selected: _office,
+                              onTap: () => setState(() => _office = !_office),
+                            ),
+                          ),
+                        ],
                       ],
                       const SizedBox(height: 26),
                       _AmountDisplay(text: _raw.isEmpty ? f.money(0) : f.money(amount), empty: _raw.isEmpty, color: accent, shake: _shake),

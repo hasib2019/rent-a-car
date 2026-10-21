@@ -60,6 +60,7 @@ class _FuelFormScreenState extends State<FuelFormScreen> {
   late bool _full = widget.fill?.fullTank ?? true;
   late bool _missed = widget.fill?.missed ?? false;
   late PayMethod _pay = widget.fill?.payMethod ?? PayMethod.cash;
+  late bool _office = widget.fill?.office ?? false;
   List<Expense> _fills = [];
   List<String> _stations = [];
   bool _saving = false;
@@ -185,6 +186,7 @@ class _FuelFormScreenState extends State<FuelFormScreen> {
       fullTank: _full,
       missed: _missed,
       payMethod: _pay,
+      office: _office,
       place: station.isEmpty ? null : station,
       note: note.isEmpty ? null : note,
     );
@@ -369,6 +371,16 @@ class _FuelFormScreenState extends State<FuelFormScreen> {
                     title: Text(s.missedFill, style: const TextStyle(fontWeight: FontWeight.w700)),
                     subtitle: Text(s.missedFillSub, style: const TextStyle(fontSize: 12.5)),
                   ),
+                  if (app.personal) ...[
+                    Divider(height: 1, indent: 72, color: p.line),
+                    SwitchListTile(
+                      value: _office,
+                      onChanged: (v) => setState(() => _office = v),
+                      secondary: IconBubble(Icons.work_rounded, p.info),
+                      title: Text(s.officeUse, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text(s.officeUseSub, style: const TextStyle(fontSize: 12.5)),
+                    ),
+                  ],
                 ]),
               ),
               if (preview != null) ...[

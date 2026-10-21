@@ -28,6 +28,7 @@ import 'forecast_screen.dart';
 import 'fuel_screens.dart';
 import 'maintenance_screen.dart';
 import 'mode_screen.dart';
+import 'office_report_screen.dart';
 import 'ownership_widgets.dart';
 import 'service_screens.dart';
 import 'settings_screen.dart';
@@ -150,6 +151,7 @@ class _CarData {
     required this.forecast,
     required this.measuredFrom,
     required this.salaries,
+    required this.officeMonth,
   });
 
   final List<FuelReport> fuel;
@@ -178,6 +180,9 @@ class _CarData {
   final DateTime measuredFrom;
   final List<SalaryAccount> salaries;
 
+  /// This month's costs marked for office work.
+  final double officeMonth;
+
   FuelReport? get mainFuel => fuel.firstOrNull;
 }
 
@@ -205,6 +210,7 @@ Future<_CarData> _loadCar(Repository r, Vehicle car) async {
     r.ledger(vehicleId: id, incomeOnly: false),
     r.costForecast(id),
     r.drivers(),
+    r.officeExpenses(Period.thisMonth(), vehicleId: id),
   ]);
   final salaried = (res[15] as List<Driver>).where((d) => d.active && d.monthlySalary > 0).toList();
   final salaries = [for (final d in salaried) SalaryAccount.build(d, await r.driverPayments(d.id!))];
@@ -229,6 +235,7 @@ Future<_CarData> _loadCar(Repository r, Vehicle car) async {
     forecast: res[14] as CostForecast,
     measuredFrom: measuredFrom,
     salaries: salaries,
+    officeMonth: (res[16] as List<Expense>).fold<double>(0, (a, e) => a + e.amount),
   );
 }
 
@@ -339,6 +346,7 @@ class _CarDashboard extends StatelessWidget {
           runningPerKm: d.distance == null || d.distance! <= 0 ? null : d.measured.expense / d.distance!,
         );
         final salary = SalaryCard(accounts: d.salaries, vehicleId: car.id!);
+        final office = OfficeClaimCard(vehicleId: car.id!, thisMonth: d.officeMonth);
         final trend = Panel(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(s.spendTrend, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -388,7 +396,7 @@ class _CarDashboard extends StatelessWidget {
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(child: Column(children: [forecast, gap, trend, gap, service, gap, parts])),
                   const SizedBox(width: 16),
-                  Expanded(child: Column(children: [salary, gap, value, gap, donut, gap, papers, gap, info])),
+                  Expanded(child: Column(children: [salary, gap, office, gap, value, gap, donut, gap, papers, gap, info])),
                 ]),
               ] else ...[
                 Entrance(child: hero),
@@ -406,6 +414,8 @@ class _CarDashboard extends StatelessWidget {
                 value,
                 gap,
                 salary,
+                gap,
+                office,
                 gap,
                 forecast,
                 gap,

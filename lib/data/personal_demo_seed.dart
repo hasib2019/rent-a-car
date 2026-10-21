@@ -102,6 +102,7 @@ Future<void> seedPersonalDemo(Repository repo, {required bool bangla}) async {
       fuelType: FuelType.cng,
       payMethod: PayMethod.cash,
       place: cngPumps[pump],
+      office: i % 3 == 0, // client visits: claimed from the office
     ));
     i++;
   }
@@ -128,15 +129,15 @@ Future<void> seedPersonalDemo(Repository repo, {required bool bangla}) async {
 
   // Monthly costs of keeping the car in Dhaka.
   for (var m = DateTime(start.year, start.month); !m.isAfter(today); m = DateTime(m.year, m.month + 1)) {
-    Future<void> cost(int day, ExpenseCategory c, double amount, String note) async {
+    Future<void> cost(int day, ExpenseCategory c, double amount, String note, {bool office = false}) async {
       final d = DateTime(m.year, m.month, day);
       if (d.isBefore(start) || d.isAfter(today)) return;
-      await repo.saveExpense(Expense(date: d, vehicleId: car, category: c, amount: amount, note: note));
+      await repo.saveExpense(Expense(date: d, vehicleId: car, category: c, amount: amount, note: note, office: office));
     }
 
-    await cost(1, ExpenseCategory.parking, 3000, t('অফিসের পার্কিং (মাসিক)', 'Office parking (monthly)'));
+    await cost(1, ExpenseCategory.parking, 3000, t('অফিসের পার্কিং (মাসিক)', 'Office parking (monthly)'), office: true);
     await cost(12, ExpenseCategory.wash, 400, t('ফুল ওয়াশ', 'Full wash'));
-    await cost(21, ExpenseCategory.toll, 80 + rnd.nextInt(3) * 40, t('এক্সপ্রেসওয়ে টোল', 'Expressway toll'));
+    await cost(21, ExpenseCategory.toll, 80 + rnd.nextInt(3) * 40, t('এক্সপ্রেসওয়ে টোল', 'Expressway toll'), office: true);
   }
   // The family driver: a month's salary three days after each month worked,
   // an Eid bonus, and an advance this month.

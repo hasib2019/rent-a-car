@@ -25,7 +25,8 @@ class Repository {
   /// 4: fuel log details (full tank, missed fill, unit price, fuel, payment).
   /// 5: CNG conversion cost on vehicles, renewal cost on papers.
   /// 6: monthly budget and market value on vehicles, salaried drivers.
-  static const schemaVersion = 6;
+  /// 7: office expenses (claimed back from the employer).
+  static const schemaVersion = 7;
 
   final DatabaseFactory _factory;
   final String _path;
@@ -52,6 +53,7 @@ class Repository {
             await _upgradeTo4(db);
             await _upgradeTo5(db);
             await _upgradeTo6(db);
+            await _upgradeTo7(db);
           },
           // Also runs when an older backup file is restored.
           onUpgrade: (db, from, _) async {
@@ -60,6 +62,7 @@ class Repository {
             if (from < 4) await _upgradeTo4(db);
             if (from < 5) await _upgradeTo5(db);
             if (from < 6) await _upgradeTo6(db);
+            if (from < 7) await _upgradeTo7(db);
           },
         ),
       );
@@ -255,6 +258,10 @@ class Repository {
     batch.execute('ALTER TABLE expenses ADD COLUMN driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL');
     batch.execute('CREATE INDEX idx_expenses_driver ON expenses(driver_id)');
     await batch.commit(noResult: true);
+  }
+
+  static Future<void> _upgradeTo7(Database db) async {
+    await db.execute('ALTER TABLE expenses ADD COLUMN office INTEGER NOT NULL DEFAULT 0');
   }
 
   // ── Backup / restore ────────────────────────────────────────────────────
@@ -621,6 +628,15 @@ class Repository {
       fuelLast90: spend.fuel,
       regularLast90: spend.regular,
     );
+  }
+
+  /// Costs marked as office business in [p], oldest first (the claim).
+  Future<List<Expense>> officeExpenses(Period p, {int? vehicleId}) async {
+    final rows = await _db.query('expenses',
+        where: 'office = 1 AND date BETWEEN ? AND ?${vehicleId == null ? '' : ' AND vehicle_id = ?'}',
+        whereArgs: [dbDate(p.from), dbDate(p.to), ?vehicleId],
+        orderBy: 'date, id');
+    return rows.map(Expense.fromMap).toList();
   }
 
   /// Salary, advances and bonuses paid to a driver, oldest first.

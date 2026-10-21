@@ -180,6 +180,32 @@ extension PersonalStrings on S {
   String get salaryDriverQuick => _t('ড্রাইভারের বেতন', 'Driver salary');
   String get salaryDriverQuickSub => _t('বেতন, অগ্রিম, বোনাস', 'Salary, advance, bonus');
 
+  // ── Office claim ─────────────────────────────────────────────────────────
+  String get officeUse => _t('অফিসের কাজে', 'For office work');
+  String get officeUseSub => _t('মাস শেষে অফিসে জমা দেওয়ার রিপোর্টে আসবে', 'Goes into the monthly claim for your office');
+  String get officeReport => _t('অফিসের খরচের রিপোর্ট', 'Office expense claim');
+  String get officeReportSub => _t('অফিসের কাজের খরচ — PDF বানিয়ে জমা দিন', 'Office-work costs — make a PDF to submit');
+  String officeThisMonth(String v) => _t('এই মাসে অফিসের খরচ $v', '$v of office costs this month');
+  String get claimTitle => _t('গাড়ির খরচের দাবি', 'Vehicle expense claim');
+  String get claimant => _t('দাবিদার', 'Claimed by');
+  String get approvedBy => _t('অনুমোদনকারী', 'Approved by');
+  String get claimPeriod => _t('সময়কাল', 'Period');
+  String get claimVehicle => _t('গাড়ি', 'Vehicle');
+  String get claimItem => _t('বিবরণ', 'Description');
+  String get claimDate => _t('তারিখ', 'Date');
+  String get claimAmount => _t('টাকা', 'Amount');
+  String get claimTotal => _t('মোট দাবি', 'Total claimed');
+  String get signature => _t('স্বাক্ষর ও তারিখ', 'Signature & date');
+  String claimPage(int a, int b) => _t('পাতা ${n(a)} / ${n(b)}', 'Page $a of $b');
+  String get claimMadeWith => _t('গাড়ির খাতা অ্যাপে তৈরি', 'Made with GariKhata');
+  String get sharePdf => _t('PDF শেয়ার / প্রিন্ট', 'Share / print PDF');
+  String get noOfficeCosts => _t('এই মাসে কোনো খরচ "অফিসের কাজে" চিহ্ন দেওয়া নেই', 'No costs marked "for office work" this month');
+  String get noOfficeCostsBody => _t(
+      'জ্বালানি বা অন্য খরচ লেখার সময় "অফিসের কাজে" চালু করুন — সেগুলো এখানে রিপোর্ট হয়ে আসবে।',
+      'Turn on "For office work" when logging fuel or a cost — they gather here as a claim.');
+  String get allCars => _t('সব গাড়ি', 'All cars');
+  String get makingPdf => _t('PDF তৈরি হচ্ছে…', 'Making the PDF…');
+
   // ── Pumps ────────────────────────────────────────────────────────────────
   String get pumpCompare => _t('পাম্প তুলনা', 'Pump comparison');
   String get pumpCompareSub => _t('কোন পাম্পের তেলে গাড়ি কতদূর যায়', 'How far each pump\'s fuel takes you');

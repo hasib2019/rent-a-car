@@ -259,6 +259,7 @@ class Expense {
     this.fuelType,
     this.payMethod,
     this.driverId,
+    this.office = false,
   });
 
   final int? id;
@@ -298,6 +299,9 @@ class Expense {
   /// Salary, advance or bonus paid to this (personal) driver.
   final int? driverId;
 
+  /// Spent on the employer's business, to claim back (office report).
+  final bool office;
+
   Map<String, Object?> toMap() => {
         'id': id,
         'date': dbDate(date),
@@ -317,6 +321,7 @@ class Expense {
         'fuel_type': fuelType?.key,
         'pay_method': payMethod?.key,
         'driver_id': driverId,
+        'office': office ? 1 : 0,
         'created_at': _now(),
       };
 
@@ -339,6 +344,7 @@ class Expense {
         fuelType: FuelType.from(m['fuel_type'] as String?),
         payMethod: m['pay_method'] == null ? null : PayMethod.from(m['pay_method'] as String),
         driverId: m['driver_id'] as int?,
+        office: (m['office'] as int? ?? 0) == 1,
       );
 }
 

@@ -7,7 +7,9 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
 import '../widgets/common.dart';
+import '../routes.dart';
 import '../widgets/ledger_tile.dart';
+import 'office_report_screen.dart';
 
 enum _Filter { all, income, expense }
 
@@ -47,6 +49,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
             padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
             child: Row(children: [
               Expanded(child: Text(app.personal ? s.costBook : s.ledger, style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800))),
+              if (app.personal)
+                IconButton(
+                  tooltip: s.officeReport,
+                  onPressed: () => Navigator.of(context).push(AppRoute(builder: (_) => OfficeReportScreen(vehicleId: _vehicleId))),
+                  icon: const Icon(Icons.work_outline_rounded),
+                ),
               IconButton(onPressed: () => setState(() => _month = DateTime(_month.year, _month.month - 1)), icon: const Icon(Icons.chevron_left_rounded)),
               Text(f.monthYear(_month), style: const TextStyle(fontWeight: FontWeight.w700)),
               IconButton(
