@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
@@ -327,7 +328,7 @@ class TripDetailScreen extends StatelessWidget {
   final int tripId;
 
   Future<void> _delete(BuildContext context) async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.deleteTrip, body: s.deleteTripBody)) return;
     if (!context.mounted) return;
     final nav = Navigator.of(context);
@@ -571,7 +572,7 @@ class _PaymentsPanel extends StatelessWidget {
   final List<TripPayment> payments;
 
   Future<void> _collect(BuildContext context, double due) async {
-    final s = context.s;
+    final s = S.read(context);
     final app = context.read<AppState>();
     final pay = await showPaymentSheet(context, suggested: due > 0 ? due : null);
     if (pay == null) return;
@@ -580,7 +581,7 @@ class _PaymentsPanel extends StatelessWidget {
   }
 
   Future<void> _remove(BuildContext context, TripPayment pay) async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.deletePayment, body: s.confirmDeleteBody)) return;
     if (!context.mounted) return;
     await context.read<AppState>().mutate((r) => r.deleteTripPayment(pay.id!));
@@ -977,7 +978,7 @@ class _TripFormScreenState extends State<TripFormScreen> {
   }
 
   Future<void> _save() async {
-    final s = context.s;
+    final s = S.read(context);
     if (_vehicleId == null) {
       toast(context, s.noVehicleYet, icon: Icons.info_outline_rounded);
       return;

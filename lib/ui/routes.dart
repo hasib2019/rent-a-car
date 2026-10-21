@@ -7,6 +7,8 @@ import 'screens/daily_collection_screen.dart';
 import 'screens/documents_screen.dart';
 import 'screens/driver_screens.dart';
 import 'screens/entry_screen.dart';
+import 'screens/forecast_screen.dart';
+import 'screens/fuel_screens.dart';
 import 'screens/maintenance_screen.dart';
 import 'screens/parties_screen.dart';
 import 'screens/profile_screen.dart';
@@ -39,6 +41,9 @@ String? screenNameOf(Widget page) {
     SettingsScreen: 'settings',
     ProfileScreen: 'profile',
     ForgotPasswordScreen: 'forgot_password',
+    ForecastScreen: 'forecast',
+    FuelLogScreen: 'fuel_log',
+    FuelFormScreen: 'fuel_form',
   }[page.runtimeType];
 }
 

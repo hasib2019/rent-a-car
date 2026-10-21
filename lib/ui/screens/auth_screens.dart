@@ -235,7 +235,7 @@ class _ErrorBanner extends StatelessWidget {
 }
 
 String _messageFor(BuildContext context, ApiException e) {
-  if (e.isOffline) return context.s.offline;
+  if (e.isOffline) return S.read(context).offline;
   return e.message;
 }
 
@@ -458,7 +458,7 @@ class _RegisterFormState extends State<_RegisterForm> {
   }
 
   Future<void> _submit() async {
-    final s = context.s;
+    final s = S.read(context);
     final auth = context.read<AuthService>();
     if (!auth.config.registrationOpen) {
       setState(() => _error = s.registrationClosed);

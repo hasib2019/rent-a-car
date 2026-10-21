@@ -4,7 +4,11 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gari_khata/core/catalog.dart';
 import 'package:gari_khata/data/demo_seed.dart';
+import 'package:gari_khata/data/forecast.dart';
+import 'package:gari_khata/data/fuel_report.dart';
 import 'package:gari_khata/data/models.dart';
+import 'package:gari_khata/data/ownership.dart';
+import 'package:gari_khata/data/personal_demo_seed.dart';
 import 'package:gari_khata/data/repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -291,6 +295,67 @@ void main() {
     final id = await repo.saveTrip(Trip(vehicleId: 1, startDate: DateTime(2026, 1, 3), origin: 'A', destination: 'B', fare: 1000), []);
     expect((await repo.trip(id))!.fare, 1000);
     expect((await repo.counts())['trips'], 1);
+  });
+
+  test('fuel log details round-trip, and old fills count as full tanks', () async {
+    final v = await repo.saveVehicle(Vehicle(name: 'Axio', type: VehicleType.car, fuel: FuelType.octane));
+    await repo.saveExpense(Expense(
+      date: DateTime(2026, 10, 1),
+      vehicleId: v,
+      category: ExpenseCategory.fuel,
+      amount: 3810,
+      quantity: 30,
+      odometer: 50000,
+      unitPrice: 127,
+      fuelType: FuelType.octane,
+      fullTank: false,
+      missed: true,
+      payMethod: PayMethod.card,
+      place: 'Meghna, Banani',
+    ));
+    final fill = (await repo.fuelFills(vehicleId: v)).single;
+    expect(fill.fullTank, isFalse);
+    expect(fill.missed, isTrue);
+    expect(fill.unitPrice, 127);
+    expect(fill.fuelType, FuelType.octane);
+    expect(fill.payMethod, PayMethod.card);
+
+    // A fill saved before schema 4 has no flag: it counts as a full tank.
+    await repo.runInTransaction((txn) => txn.insert('expenses',
+        {'date': '2026-10-02', 'vehicle_id': v, 'category': 'fuel', 'amount': 1000, 'quantity': 8, 'odometer': 50100, 'created_at': '2026-10-02'}));
+    final old = (await repo.fuelFills(vehicleId: v)).last;
+    expect(old.fullTank, isTrue);
+    expect(old.missed, isFalse);
+    expect(old.payMethod, isNull);
+  });
+
+  test('personal demo shows mileage, a short pump, CNG savings and a forecast', () async {
+    await seedPersonalDemo(repo, bangla: false);
+    final car = (await repo.vehicles()).first;
+    final reports = FuelReport.byFuel(await repo.fuelFills(vehicleId: car.id), fallback: car.fuel);
+    expect(reports.map((r) => r.fuel), [FuelType.cng, FuelType.octane]);
+    final cng = reports.first;
+    expect(cng.avgMileage, inInclusiveRange(10, 14));
+    expect(cng.mileageAlert, isTrue);
+    expect(cng.stations().first.name, 'Rupsha CNG, Badda');
+    expect(cng.stations().first.suspect, isTrue);
+    final savings = FuelSavings.of(reports)!;
+    expect(savings.cheap.fuel, FuelType.cng);
+    expect(savings.saved, greaterThan(20000));
+    expect(car.conversionCost, 75000);
+
+    final forecast = await repo.costForecast(car.id!);
+    expect(forecast.oneOffs.any((i) => i.paper == PaperType.taxToken && i.amount == 16500), isTrue);
+    expect(forecast.oneOffs.any((i) => i.kind == ForecastKind.service), isTrue);
+    expect(forecast.unknown, 0);
+    expect(forecast.perMonth, greaterThan(0));
+
+    final driver = (await repo.drivers()).single;
+    final account = SalaryAccount.build(driver, await repo.driverPayments(driver.id!));
+    expect(account.bonus, 8000);
+    expect(account.paid, greaterThan(0));
+    expect(car.monthlyBudget, 30000);
+    expect(CarValue.of(car)!.estimated, isTrue);
   });
 
   test('export → erase → import restores everything', () async {

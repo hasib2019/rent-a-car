@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format.dart';
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../services/drive_backup.dart';
 import '../../services/local_backup.dart';
@@ -37,12 +38,12 @@ class _BackupScreenState extends State<BackupScreen> {
       await action();
     } on GoogleSignInException catch (e) {
       if (!mounted) return;
-      final s = context.s;
+      final s = S.read(context);
       if (e.code == GoogleSignInExceptionCode.canceled) return;
       toast(context, e.code == GoogleSignInExceptionCode.clientConfigurationError ? s.driveNotConfigured : s.somethingWrong(e.description ?? e.code.name),
           icon: Icons.error_outline_rounded);
     } catch (e) {
-      if (mounted) toast(context, context.s.somethingWrong(e), icon: Icons.error_outline_rounded);
+      if (mounted) toast(context, S.read(context).somethingWrong(e), icon: Icons.error_outline_rounded);
     } finally {
       if (mounted) setState(() => _busy = null);
     }
@@ -65,17 +66,17 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _backupDrive() => _run('backup', () async {
         final app = context.read<AppState>();
         final settings = context.read<Settings>();
-        final s = context.s;
+        final s = S.read(context);
         final bytes = await app.repo.exportBytes();
-        final at = await _drive.upload(bytes);
+        final at = await _drive.upload(bytes, personal: app.personal);
         await settings.setLastBackup(at);
         if (mounted) toast(context, s.backupDone, icon: Icons.cloud_done_rounded);
       });
 
   Future<void> _restoreDrive() => _run('restore', () async {
-        final s = context.s;
+        final s = S.read(context);
         final f = Fmt.read(context);
-        final files = await _drive.list();
+        final files = await _drive.list(personal: context.read<AppState>().personal);
         if (!mounted) return;
         if (files.isEmpty) {
           toast(context, s.noDriveBackups, icon: Icons.cloud_off_rounded);
@@ -110,13 +111,13 @@ class _BackupScreenState extends State<BackupScreen> {
 
   Future<void> _export() => _run('export', () async {
         final app = context.read<AppState>();
-        final s = context.s;
+        final s = S.read(context);
         final bytes = await app.repo.exportBytes();
-        if (await LocalBackup.save(bytes) && mounted) toast(context, s.backupDone);
+        if (await LocalBackup.save(bytes, personal: app.personal) && mounted) toast(context, s.backupDone);
       });
 
   Future<void> _import() => _run('import', () async {
-        final s = context.s;
+        final s = S.read(context);
         final bytes = await LocalBackup.open();
         if (bytes == null || !mounted) return;
         if (!await confirm(context, title: s.restore, body: s.restoreConfirm, confirmLabel: s.restore)) return;
@@ -125,7 +126,7 @@ class _BackupScreenState extends State<BackupScreen> {
 
   Future<void> _restoreBytes(Uint8List bytes) async {
     final app = context.read<AppState>();
-    final s = context.s;
+    final s = S.read(context);
     try {
       await app.mutate((r) => r.importBytes(bytes));
       if (mounted) toast(context, s.restoreDone, icon: Icons.restore_rounded);

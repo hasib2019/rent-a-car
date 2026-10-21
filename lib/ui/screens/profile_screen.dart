@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format.dart';
+import '../../core/l10n.dart';
 import '../../core/l10n_auth.dart';
 import '../../core/theme.dart';
 import '../../services/api.dart';
@@ -101,7 +102,7 @@ class ProfileScreen extends StatelessWidget {
       );
 
   Future<void> _logout(BuildContext context) async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.logoutConfirm, body: s.logoutBody, confirmLabel: s.logout, danger: false)) return;
     if (!context.mounted) return;
     final nav = Navigator.of(context);
@@ -110,16 +111,18 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Future<void> _deleteAccount(BuildContext context) async {
-    final s = context.s;
+    final s = S.read(context);
     final password = await _askPassword(context, title: s.deleteAccount, body: s.deleteAccountBody, confirmLabel: s.delete);
     if (password == null || !context.mounted) return;
     final auth = context.read<AuthService>();
-    final app = context.read<AppState>();
+    final books = context.read<AppBooks>();
     final nav = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
       await auth.deleteAccount(password);
-      await app.mutate((r) => r.eraseEverything());
+      for (final b in books.all) {
+        await b.mutate((r) => r.eraseEverything());
+      }
       nav.popUntil((r) => r.isFirst);
       messenger.showSnackBar(SnackBar(content: Text(s.accountDeleted)));
     } on ApiException catch (e) {
@@ -129,7 +132,7 @@ class ProfileScreen extends StatelessWidget {
 
   Future<String?> _askPassword(BuildContext context, {required String title, required String body, required String confirmLabel}) {
     final ctl = TextEditingController();
-    final s = context.s;
+    final s = S.read(context);
     final p = context.pal;
     return showDialog<String>(
       context: context,
@@ -223,7 +226,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       _busy = true;
       _errors = {};
     });
-    final s = context.s;
+    final s = S.read(context);
     try {
       await context.read<AuthService>().updateProfile({
         'name': _name.text.trim(),
@@ -299,7 +302,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   }
 
   Future<void> _save() async {
-    final s = context.s;
+    final s = S.read(context);
     if (_next.text != _confirm.text) {
       setState(() => _errors = {'password_confirmation': s.passwordsDontMatch});
       return;

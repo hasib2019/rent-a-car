@@ -5,6 +5,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 import '../core/catalog.dart';
 import '../core/format.dart';
 import 'db_factory.dart';
+import 'forecast.dart';
 import 'models.dart';
 
 /// Single source of truth for every query the app runs against SQLite.
@@ -13,19 +14,26 @@ class Repository {
 
   static const dbName = 'garikhata.db';
 
+  /// The owner's own cars live in a separate file, so personal fuel and costs
+  /// never mix into the fleet business accounts.
+  static const personalDbName = 'garikhata_personal.db';
+
   /// 1: vehicles, drivers, incomes, expenses, papers.
   /// 2: trips and parts, linked into incomes/expenses.
   /// 3: garage visits, trip payments and business details, fuller vehicle,
   ///    driver, paper and part records.
-  static const schemaVersion = 3;
+  /// 4: fuel log details (full tank, missed fill, unit price, fuel, payment).
+  /// 5: CNG conversion cost on vehicles, renewal cost on papers.
+  /// 6: monthly budget and market value on vehicles, salaried drivers.
+  static const schemaVersion = 6;
 
   final DatabaseFactory _factory;
   final String _path;
   Database _db;
 
-  static Future<Repository> open() async {
+  static Future<Repository> open({bool personal = false}) async {
     final factory = platformDatabaseFactory();
-    return openWith(factory, await databasePath(factory, dbName));
+    return openWith(factory, await databasePath(factory, personal ? personalDbName : dbName));
   }
 
   /// Opens a database with an explicit factory/path (used by tests).
@@ -41,11 +49,17 @@ class Repository {
             await _createSchema(db);
             await _upgradeTo2(db);
             await _upgradeTo3(db);
+            await _upgradeTo4(db);
+            await _upgradeTo5(db);
+            await _upgradeTo6(db);
           },
           // Also runs when an older backup file is restored.
           onUpgrade: (db, from, _) async {
             if (from < 2) await _upgradeTo2(db);
             if (from < 3) await _upgradeTo3(db);
+            if (from < 4) await _upgradeTo4(db);
+            if (from < 5) await _upgradeTo5(db);
+            if (from < 6) await _upgradeTo6(db);
           },
         ),
       );
@@ -214,6 +228,32 @@ class Repository {
     batch.execute('CREATE INDEX idx_payments_trip ON trip_payments(trip_id)');
     batch.execute('CREATE INDEX idx_parts_visit ON parts(visit_id)');
     batch.execute('CREATE INDEX idx_expenses_visit ON expenses(visit_id)');
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> _upgradeTo4(Database db) async {
+    final batch = db.batch();
+    for (final col in ['full_tank INTEGER', 'missed INTEGER NOT NULL DEFAULT 0', 'unit_price REAL', 'fuel_type TEXT', 'pay_method TEXT']) {
+      batch.execute('ALTER TABLE expenses ADD COLUMN $col');
+    }
+    batch.execute('CREATE INDEX idx_expenses_fuel ON expenses(vehicle_id, category, date)');
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> _upgradeTo5(Database db) async {
+    final batch = db.batch();
+    batch.execute('ALTER TABLE vehicles ADD COLUMN conversion_cost REAL');
+    batch.execute('ALTER TABLE papers ADD COLUMN renewal_cost REAL');
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> _upgradeTo6(Database db) async {
+    final batch = db.batch();
+    batch.execute('ALTER TABLE vehicles ADD COLUMN monthly_budget REAL');
+    batch.execute('ALTER TABLE vehicles ADD COLUMN market_value REAL');
+    batch.execute('ALTER TABLE drivers ADD COLUMN monthly_salary REAL NOT NULL DEFAULT 0');
+    batch.execute('ALTER TABLE expenses ADD COLUMN driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL');
+    batch.execute('CREATE INDEX idx_expenses_driver ON expenses(driver_id)');
     await batch.commit(noResult: true);
   }
 
@@ -544,6 +584,49 @@ class Repository {
     }
     if (qty <= 0 || last <= first) return null;
     return (last - first) / qty;
+  }
+
+  /// Every fill-up, oldest first, as [FuelReport] expects them.
+  Future<List<Expense>> fuelFills({int? vehicleId}) async {
+    final rows = await _db.query('expenses',
+        where: "category = 'fuel'${vehicleId == null ? '' : ' AND vehicle_id = ?'}",
+        whereArgs: vehicleId == null ? null : [vehicleId],
+        orderBy: 'date, odometer, id');
+    return rows.map(Expense.fromMap).toList();
+  }
+
+  /// The next twelve months of one car's costs (see [CostForecast]).
+  Future<CostForecast> costForecast(int vehicleId, {DateTime? today}) async {
+    final n = today ?? DateTime.now();
+    final now = DateTime(n.year, n.month, n.day);
+    final res = await Future.wait([
+      papers(vehicleId: vehicleId),
+      serviceStatuses(vehicleId: vehicleId),
+      visits(vehicleId: vehicleId),
+      partStatuses(vehicleId: vehicleId),
+      fuelFills(vehicleId: vehicleId),
+      odometers(),
+      _db.query('expenses',
+          where: 'vehicle_id = ? AND date BETWEEN ? AND ?', whereArgs: [vehicleId, dbDate(now.subtract(const Duration(days: 90))), dbDate(now)]),
+    ]);
+    final spend = recentSpend((res[6] as List<Map<String, Object?>>).map(Expense.fromMap).toList());
+    return CostForecast.build(
+      today: now,
+      papers: res[0] as List<Paper>,
+      services: res[1] as List<ServiceStatus>,
+      visits: res[2] as List<VisitSummary>,
+      parts: res[3] as List<PartStatus>,
+      fills: res[4] as List<Expense>,
+      currentKm: (res[5] as Map<int, double>)[vehicleId],
+      fuelLast90: spend.fuel,
+      regularLast90: spend.regular,
+    );
+  }
+
+  /// Salary, advances and bonuses paid to a driver, oldest first.
+  Future<List<Expense>> driverPayments(int driverId) async {
+    final rows = await _db.query('expenses', where: 'driver_id = ?', whereArgs: [driverId], orderBy: 'date, id');
+    return rows.map(Expense.fromMap).toList();
   }
 
   // ── Papers ──────────────────────────────────────────────────────────────

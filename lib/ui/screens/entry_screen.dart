@@ -4,12 +4,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
 import '../widgets/common.dart';
 import 'daily_collection_screen.dart';
 import 'documents_screen.dart';
+import 'fuel_screens.dart';
 import 'maintenance_screen.dart';
 import 'parties_screen.dart';
 import 'service_screens.dart';
@@ -43,6 +45,7 @@ Future<void> openEntryEditor(BuildContext context, LedgerEntry e) async {
   } else {
     final x = await repo.expense(e.id);
     if (x == null || !context.mounted) return;
+    if (x.category == ExpenseCategory.fuel && context.read<AppState>().personal) return openFuelForm(context, fill: x);
     await Navigator.of(context).push(AppRoute(
         builder: (_) => EntryScreen(mode: x.category == ExpenseCategory.fuel ? EntryMode.fuel : EntryMode.expense, expense: x)));
   }
@@ -56,6 +59,8 @@ Future<void> openEntry(BuildContext context, EntryMode mode, {int? vehicleId, in
     EntryMode.joma => Feature.dailyCollection,
   };
   if (!await requireFeature(context, feature) || !context.mounted) return;
+  // The owner's own car gets the full fuel log (full tank, price, station).
+  if (mode == EntryMode.fuel && context.read<AppState>().personal) return openFuelForm(context, vehicleId: vehicleId);
   await Navigator.of(context).push(AppRoute(
     fullscreenDialog: true,
     builder: (_) => EntryScreen(mode: mode, vehicleId: vehicleId, driverId: driverId),
@@ -128,7 +133,7 @@ Future<void> showQuickAdd(BuildContext context) {
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 1.45,
+                childAspectRatio: 1.3,
                 children: [
                   option(Icons.route_rounded, p.income, s.newTrip, s.newTripSub, () => openTripForm(context)),
                   option(Icons.garage_rounded, ExpenseCategory.servicing.color, s.visitQuick, s.visitQuickSub, () => openVisitForm(context)),
@@ -271,7 +276,7 @@ class _EntryScreenState extends State<EntryScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
-    final s = context.s;
+    final s = S.read(context);
     final amount = double.tryParse(_raw) ?? 0;
     final app = context.read<AppState>();
     if (_vehicleId == null) {
@@ -306,6 +311,7 @@ class _EntryScreenState extends State<EntryScreen> {
                 place: widget.expense?.place,
                 tripId: widget.expense?.tripId,
                 partId: widget.expense?.partId,
+                driverId: widget.expense?.driverId,
               )));
         case EntryMode.trip:
           await app.mutate((r) => r.saveIncome(Income(
@@ -353,7 +359,7 @@ class _EntryScreenState extends State<EntryScreen> {
   }
 
   Future<void> _delete() async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.deleteEntry, body: s.confirmDeleteBody)) return;
     if (!mounted) return;
     final app = context.read<AppState>();
@@ -414,7 +420,7 @@ class _EntryScreenState extends State<EntryScreen> {
                         const SizedBox(height: 18),
                         _label(s.category),
                         Wrap(spacing: 8, runSpacing: 8, children: [
-                          for (final c in ExpenseCategory.values.where((c) => c != ExpenseCategory.fuel))
+                          for (final c in (app.personal ? ExpenseCategory.personalCosts : ExpenseCategory.values.where((c) => c != ExpenseCategory.fuel)))
                             ChoiceTag(label: c.label(s), icon: c.icon, color: c.color, selected: _category == c, onTap: () => setState(() => _category = c)),
                         ]),
                       ],

@@ -22,6 +22,11 @@ class DriveBackup {
   static const _serverClientId = Env.googleServerClientId;
   static const _scopes = [drive.DriveApi.driveAppdataScope];
   static const _prefix = 'garikhata-backup-';
+
+  /// Personal-mode books are a separate file, so their backups are too.
+  static const _personalPrefix = 'garikhata-personal-backup-';
+
+  static String _prefixFor(bool personal) => personal ? _personalPrefix : _prefix;
   static const keepLatest = 10;
 
   bool _initialized = false;
@@ -122,25 +127,25 @@ class DriveBackup {
         return about.user?.emailAddress;
       });
 
-  Future<DateTime> upload(Uint8List bytes) => _withRetry((api) async {
+  Future<DateTime> upload(Uint8List bytes, {bool personal = false}) => _withRetry((api) async {
         final now = DateTime.now();
         final stamp = now.toIso8601String().replaceAll(':', '-').split('.').first;
         final meta = drive.File()
-          ..name = '$_prefix$stamp.db'
+          ..name = '${_prefixFor(personal)}$stamp.db'
           ..parents = ['appDataFolder']
           ..mimeType = 'application/x-sqlite3';
         await api.files.create(
           meta,
           uploadMedia: drive.Media(Stream.value(bytes), bytes.length, contentType: 'application/x-sqlite3'),
         );
-        await _prune(api);
+        await _prune(api, personal);
         return now;
       });
 
-  Future<List<drive.File>> list() => _withRetry((api) async {
+  Future<List<drive.File>> list({bool personal = false}) => _withRetry((api) async {
         final res = await api.files.list(
           spaces: 'appDataFolder',
-          q: "name contains '$_prefix' and trashed = false",
+          q: "name contains '${_prefixFor(personal)}' and trashed = false",
           orderBy: 'createdTime desc',
           $fields: 'files(id,name,size,createdTime)',
           pageSize: 50,
@@ -157,10 +162,10 @@ class DriveBackup {
         return builder.takeBytes();
       });
 
-  Future<void> _prune(drive.DriveApi api) async {
+  Future<void> _prune(drive.DriveApi api, bool personal) async {
     final res = await api.files.list(
       spaces: 'appDataFolder',
-      q: "name contains '$_prefix' and trashed = false",
+      q: "name contains '${_prefixFor(personal)}' and trashed = false",
       orderBy: 'createdTime desc',
       $fields: 'files(id)',
       pageSize: 100,

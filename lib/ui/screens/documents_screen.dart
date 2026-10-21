@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/l10n_personal.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
@@ -129,6 +130,7 @@ class _PaperSheetState extends State<_PaperSheet> {
   late DateTime? _expiry = widget.paper?.expiry;
   late final _docNo = TextEditingController(text: widget.paper?.docNo);
   late final _provider = TextEditingController(text: widget.paper?.provider);
+  late final _cost = TextEditingController(text: widget.paper?.renewalCost == null ? '' : widget.paper!.renewalCost!.round().toString());
 
   @override
   void initState() {
@@ -141,6 +143,7 @@ class _PaperSheetState extends State<_PaperSheet> {
   void dispose() {
     _docNo.dispose();
     _provider.dispose();
+    _cost.dispose();
     super.dispose();
   }
 
@@ -156,6 +159,7 @@ class _PaperSheetState extends State<_PaperSheet> {
           note: widget.paper?.note,
           docNo: text(_docNo),
           provider: text(_provider),
+          renewalCost: parseAmount(_cost.text),
         )));
     if (mounted) Navigator.pop(context);
   }
@@ -202,6 +206,12 @@ class _PaperSheetState extends State<_PaperSheet> {
                   ),
                 ),
               ]),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _cost,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: s.renewalCost, helperText: s.renewalCostHelp, prefixText: '৳ ', prefixIcon: const Icon(Icons.payments_outlined)),
+              ),
               const SizedBox(height: 20),
               Row(children: [
                 if (widget.paper != null) ...[

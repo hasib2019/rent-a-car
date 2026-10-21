@@ -11,9 +11,11 @@ import '../services/drive_backup.dart';
 import '../services/settings.dart';
 import '../state/app_state.dart';
 import 'screens/entry_screen.dart';
+import 'screens/fuel_screens.dart';
 import 'screens/home_screen.dart';
 import 'screens/ledger_screen.dart';
 import 'screens/maintenance_screen.dart';
+import 'screens/personal_screens.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/trip_screens.dart';
@@ -22,10 +24,15 @@ import 'widgets/common.dart';
 import 'routes.dart';
 import '../services/access.dart';
 import '../services/analytics.dart';
+import '../core/l10n_personal.dart';
 import '../services/auth.dart';
 import 'widgets/access_gate.dart';
 
-enum _Tab { home, fleet, trips, parts, ledger, reports, settings }
+enum _Tab { home, fleet, fuel, trips, parts, ledger, reports, settings }
+
+/// The + button: fleet entries, or fuel first for the owner's own car.
+void openQuickAdd(BuildContext context) =>
+    context.read<AppState>().personal ? showPersonalQuickAdd(context) : showQuickAdd(context);
 
 class _NavItem {
   const _NavItem(this.icon, this.activeIcon, this.label);
@@ -46,11 +53,12 @@ class _AppShellState extends State<AppShell> {
   _Tab _tab = _Tab.home;
 
   /// Tabs that a package can switch off.
-  static const _features = {_Tab.trips: Feature.trips, _Tab.parts: Feature.partsTracking, _Tab.reports: Feature.reports};
+  static const _features = {_Tab.trips: Feature.trips, _Tab.parts: Feature.partsTracking, _Tab.reports: Feature.reports, _Tab.fuel: Feature.fuelExpense};
 
   static const _screenNames = {
     _Tab.home: 'home',
     _Tab.fleet: 'fleet',
+    _Tab.fuel: 'fuel_log',
     _Tab.trips: 'trips',
     _Tab.parts: 'maintenance',
     _Tab.ledger: 'ledger',
@@ -58,32 +66,44 @@ class _AppShellState extends State<AppShell> {
     _Tab.settings: 'settings',
   };
 
+  /// The owner's own cars (the shell is rebuilt when the mode changes).
+  late final bool _personal = context.read<AppState>().personal;
+
   @override
   void initState() {
     super.initState();
-    Analytics.instance.screen('home');
+    Analytics.instance.screen(_personal ? 'personal_home' : 'home');
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoBackup());
   }
 
-  /// Once a day, silently push a backup to Drive if the owner opted in.
+  /// Once a day, silently push a backup of both books to Drive if the owner opted in.
   Future<void> _autoBackup() async {
     final settings = context.read<Settings>();
-    final app = context.read<AppState>();
+    final books = context.read<AppBooks>();
     final drive = DriveBackup.instance;
     if (!settings.autoBackup || settings.driveEmail == null || !drive.configured) return;
     final last = settings.lastBackup;
     if (last != null && DateTime.now().difference(last).inHours < 20) return;
     try {
       if (!await drive.connect(interactive: false)) return;
-      final at = await drive.upload(await app.repo.exportBytes());
-      await settings.setLastBackup(at);
+      DateTime? at;
+      for (final b in books.all) {
+        if (b.vehicles.isEmpty) continue;
+        at = await drive.upload(await b.repo.exportBytes(), personal: b.personal);
+      }
+      if (at != null) await settings.setLastBackup(at);
     } catch (_) {
       // Silent: the owner can always back up manually from settings.
     }
   }
 
-  /// Phones get four tabs around the + button; trips and parts open as pages.
-  List<_Tab> _tabs(bool wide) => wide ? _Tab.values : const [_Tab.home, _Tab.fleet, _Tab.ledger, _Tab.reports];
+  /// Phones get four tabs around the + button; the rest open as pages.
+  List<_Tab> _tabs(bool wide) => switch ((_personal, wide)) {
+        (false, true) => const [_Tab.home, _Tab.fleet, _Tab.trips, _Tab.parts, _Tab.ledger, _Tab.reports, _Tab.settings],
+        (false, false) => const [_Tab.home, _Tab.fleet, _Tab.ledger, _Tab.reports],
+        (true, true) => const [_Tab.home, _Tab.fleet, _Tab.fuel, _Tab.parts, _Tab.ledger, _Tab.settings],
+        (true, false) => const [_Tab.home, _Tab.fuel, _Tab.parts, _Tab.ledger],
+      };
 
   Future<void> _open(_Tab tab) async {
     final feature = _features[tab];
@@ -99,6 +119,7 @@ class _AppShellState extends State<AppShell> {
     final Widget page = switch (tab) {
       _Tab.trips => const TripsScreen(),
       _Tab.parts => const MaintenanceScreen(),
+      _Tab.fuel => const FuelLogScreen(),
       _ => const SettingsScreen(),
     };
     Navigator.of(context).push(AppRoute(builder: (_) => page));
@@ -106,21 +127,28 @@ class _AppShellState extends State<AppShell> {
 
   _NavItem _item(_Tab t, S s) => switch (t) {
         _Tab.home => _NavItem(Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, s.navHome),
-        _Tab.fleet => _NavItem(Icons.directions_car_outlined, Icons.directions_car_filled_rounded, s.navFleet),
+        _Tab.fleet => _NavItem(Icons.directions_car_outlined, Icons.directions_car_filled_rounded, _personal ? s.myCars : s.navFleet),
+        _Tab.fuel => _NavItem(Icons.local_gas_station_outlined, Icons.local_gas_station_rounded, s.fuel),
         _Tab.trips => _NavItem(Icons.route_outlined, Icons.route_rounded, s.navTrips),
         _Tab.parts => _NavItem(Icons.build_circle_outlined, Icons.build_circle_rounded, s.navParts),
-        _Tab.ledger => _NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, s.navLedger),
+        _Tab.ledger => _NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, _personal ? s.expense : s.navLedger),
         _Tab.reports => _NavItem(Icons.insights_outlined, Icons.insights_rounded, s.navReport),
         _Tab.settings => _NavItem(Icons.tune_outlined, Icons.tune_rounded, s.navSettings),
       };
 
   Widget _page(_Tab t) => switch (t) {
+        _Tab.home when _personal => PersonalHomeScreen(
+            onOpenFuel: () => _open(_Tab.fuel),
+            onOpenParts: () => _open(_Tab.parts),
+            onOpenLedger: () => _open(_Tab.ledger),
+          ),
         _Tab.home => HomeScreen(
             onOpenLedger: () => _open(_Tab.ledger),
             onOpenTrips: () => _open(_Tab.trips),
             onOpenParts: () => _open(_Tab.parts),
           ),
         _Tab.fleet => const FleetScreen(),
+        _Tab.fuel => const FuelLogScreen(embedded: true),
         _Tab.trips => const TripsScreen(embedded: true),
         _Tab.parts => const MaintenanceScreen(embedded: true),
         _Tab.ledger => const LedgerScreen(),
@@ -178,7 +206,8 @@ class _FloatingNav extends StatelessWidget {
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutBack,
+                // No overshoot: a negative padding mid-animation throws.
+                curve: Curves.easeOutCubic,
                 padding: EdgeInsets.symmetric(horizontal: sel ? 16 : 0, vertical: 5),
                 decoration: BoxDecoration(color: sel ? p.accent : Colors.transparent, borderRadius: BorderRadius.circular(20)),
                 child: Icon(sel ? it.activeIcon : it.icon, size: 23, color: sel ? p.onAccent : p.onHero.withValues(alpha: 0.6)),
@@ -226,7 +255,7 @@ class _FloatingNav extends StatelessWidget {
             Positioned(
               top: -6,
               child: Pressable(
-                onTap: () => showQuickAdd(context),
+                onTap: () => openQuickAdd(context),
                 child: Container(
                   width: 66,
                   height: 66,
@@ -277,14 +306,16 @@ class _Sidebar extends StatelessWidget {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(s.appName, style: TextStyle(color: p.onHero, fontWeight: FontWeight.w800, fontSize: 18)),
-                  if (settings.businessName.isNotEmpty)
+                  if (context.watch<AppState>().personal)
+                    Text(s.myCar, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.onHero.withValues(alpha: 0.55), fontSize: 12))
+                  else if (settings.businessName.isNotEmpty)
                     Text(settings.businessName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.onHero.withValues(alpha: 0.55), fontSize: 12)),
                 ]),
               ),
             ]),
             const SizedBox(height: 28),
             Pressable(
-              onTap: () => showQuickAdd(context),
+              onTap: () => openQuickAdd(context),
               child: Container(
                 height: 52,
                 decoration: BoxDecoration(color: p.accent, borderRadius: BorderRadius.circular(18)),

@@ -4,9 +4,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/l10n.dart';
+import '../../core/l10n_personal.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../../services/settings.dart';
 import '../../state/app_state.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
@@ -15,6 +18,7 @@ import 'documents_screen.dart';
 import 'driver_screens.dart';
 import 'entry_screen.dart';
 import 'maintenance_screen.dart';
+import 'personal_screens.dart';
 import 'service_screens.dart';
 import 'trip_screens.dart';
 import '../routes.dart';
@@ -44,6 +48,8 @@ class _FleetScreenState extends State<FleetScreen> {
     final app = context.watch<AppState>();
     final s = context.s;
     final f = context.fmt;
+    // Personal cars have no hired-driver books.
+    final tab = app.personal ? FleetTab.vehicles : _tab;
 
     return SafeArea(
       bottom: false,
@@ -52,30 +58,31 @@ class _FleetScreenState extends State<FleetScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
             child: Row(children: [
-              Expanded(child: Text(s.navFleet, style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800))),
+              Expanded(child: Text(app.personal ? s.myCars : s.navFleet, style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800))),
               RoundIconButton(
                 icon: Icons.add_rounded,
                 filled: true,
-                tooltip: _tab == FleetTab.vehicles ? s.addVehicle : s.addDriver,
-                onTap: () => _tab == FleetTab.vehicles ? openNewVehicle(context) : openNewDriver(context),
+                tooltip: tab == FleetTab.vehicles ? (app.personal ? s.addCar : s.addVehicle) : s.addDriver,
+                onTap: () => tab == FleetTab.vehicles ? openNewVehicle(context) : openNewDriver(context),
               ),
             ]),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: PillToggle<FleetTab>(
-              values: FleetTab.values,
-              selected: _tab,
-              label: (t) => t == FleetTab.vehicles
-                  ? '${s.vehicles} · ${f.digits(app.vehicles.length)}'
-                  : '${s.drivers} · ${f.digits(app.drivers.length)}',
-              onChanged: (t) => setState(() => _tab = t),
+          if (!app.personal)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: PillToggle<FleetTab>(
+                values: FleetTab.values,
+                selected: _tab,
+                label: (t) => t == FleetTab.vehicles
+                    ? '${s.vehicles} · ${f.digits(app.vehicles.length)}'
+                    : '${s.drivers} · ${f.digits(app.drivers.length)}',
+                onChanged: (t) => setState(() => _tab = t),
+              ),
             ),
-          ),
           Expanded(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 250),
-              child: _tab == FleetTab.vehicles ? const _VehicleList(key: ValueKey('v')) : const DriverList(key: ValueKey('d')),
+              child: tab == FleetTab.vehicles ? const _VehicleList(key: ValueKey('v')) : const DriverList(key: ValueKey('d')),
             ),
           ),
         ]),
@@ -142,9 +149,17 @@ class VehicleCard extends StatelessWidget {
     final v = vehicle;
     final driver = app.driverOf(v);
     final profit = stat?.profit ?? 0;
+    final month = f.monthShort(DateTime.now().month);
 
     return Panel(
-      onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!))),
+      onTap: () {
+        if (!app.personal) {
+          Navigator.of(context).push(AppRoute(builder: (_) => VehicleDetailScreen(vehicleId: v.id!)));
+          return;
+        }
+        context.read<Settings>().setPersonalCarId(v.id);
+        Navigator.of(context).push(AppRoute(builder: (_) => const PersonalCarScreen()));
+      },
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           TypeBadge(v.type, size: 50),
@@ -166,11 +181,19 @@ class VehicleCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(16)),
-          child: Row(children: [
-            Expanded(child: _kv(context, s.driver, driver?.name ?? s.noDriver)),
-            Expanded(child: _kv(context, s.target, '${f.money(v.dailyTarget)}${s.perDay}')),
-            Expanded(child: _kv(context, '${s.profit} · ${f.monthShort(DateTime.now().month)}', f.money(profit), color: profit >= 0 ? p.income : p.expense)),
-          ]),
+          child: Row(
+            children: app.personal
+                ? [
+                    Expanded(child: _kv(context, s.fuelType, v.fuel?.label(s) ?? '—')),
+                    Expanded(child: _kv(context, '${s.fuel} · $month', f.money(stat?.fuel ?? 0))),
+                    Expanded(child: _kv(context, '${s.expense} · $month', f.money(stat?.expense ?? 0), color: p.expense)),
+                  ]
+                : [
+                    Expanded(child: _kv(context, s.driver, driver?.name ?? s.noDriver)),
+                    Expanded(child: _kv(context, s.target, '${f.money(v.dailyTarget)}${s.perDay}')),
+                    Expanded(child: _kv(context, '${s.profit} · $month', f.money(profit), color: profit >= 0 ? p.income : p.expense)),
+                  ],
+          ),
         ),
       ]),
     );
@@ -370,11 +393,11 @@ class VehicleDetailScreen extends StatelessWidget {
             if (d.categories.isEmpty) Text(s.noData, style: TextStyle(color: p.muted)) else CategoryDonut(data: d.categories),
           ]));
 
-          final papers = _PapersCard(vehicleId: vehicleId, papers: d.papers);
-          final parts = _PartsCard(vehicleId: vehicleId, statuses: d.parts);
+          final papers = VehiclePapersCard(vehicleId: vehicleId, papers: d.papers);
+          final parts = VehiclePartsCard(vehicleId: vehicleId, statuses: d.parts);
           final trips = _TripsCard(vehicleId: vehicleId, trips: d.trips);
-          final serviceBook = _ServiceBookCard(vehicleId: vehicleId, visits: d.visits, next: d.service);
-          final info = _InfoCard(vehicle: v, odometer: d.odometer);
+          final serviceBook = VehicleServiceBookCard(vehicleId: vehicleId, visits: d.visits, next: d.service);
+          final info = VehicleInfoCard(vehicle: v, odometer: d.odometer);
 
           final history = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SectionHeader(s.history),
@@ -523,8 +546,8 @@ class _PaybackCard extends StatelessWidget {
   }
 }
 
-class _PapersCard extends StatelessWidget {
-  const _PapersCard({required this.vehicleId, required this.papers});
+class VehiclePapersCard extends StatelessWidget {
+  const VehiclePapersCard({super.key, required this.vehicleId, required this.papers});
   final int vehicleId;
   final List<Paper> papers;
 
@@ -550,8 +573,8 @@ class _PapersCard extends StatelessWidget {
   }
 }
 
-class _PartsCard extends StatelessWidget {
-  const _PartsCard({required this.vehicleId, required this.statuses});
+class VehiclePartsCard extends StatelessWidget {
+  const VehiclePartsCard({super.key, required this.vehicleId, required this.statuses});
   final int vehicleId;
   final List<PartStatus> statuses;
 
@@ -578,8 +601,8 @@ class _PartsCard extends StatelessWidget {
 }
 
 /// The vehicle's garage history: official services and local repairs.
-class _ServiceBookCard extends StatelessWidget {
-  const _ServiceBookCard({required this.vehicleId, required this.visits, this.next});
+class VehicleServiceBookCard extends StatelessWidget {
+  const VehicleServiceBookCard({super.key, required this.vehicleId, required this.visits, this.next});
   final int vehicleId;
   final List<VisitSummary> visits;
   final ServiceStatus? next;
@@ -611,8 +634,8 @@ class _ServiceBookCard extends StatelessWidget {
 }
 
 /// Registration and identity details of the vehicle.
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.vehicle, this.odometer});
+class VehicleInfoCard extends StatelessWidget {
+  const VehicleInfoCard({super.key, required this.vehicle, this.odometer});
   final Vehicle vehicle;
   final double? odometer;
 
@@ -736,8 +759,9 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   late final _color = TextEditingController(text: widget.vehicle?.color);
   late final _year = TextEditingController(text: widget.vehicle?.year?.toString());
   late final _capacity = TextEditingController(text: widget.vehicle?.capacity);
+  late final _conversion = TextEditingController(text: _num(widget.vehicle?.conversionCost));
   late FuelType? _fuel = widget.vehicle?.fuel;
-  late VehicleType _type = widget.vehicle?.type ?? VehicleType.cng;
+  late VehicleType _type = widget.vehicle?.type ?? (context.read<AppState>().personal ? VehicleType.car : VehicleType.cng);
   late VehicleStatus _status = widget.vehicle?.status ?? VehicleStatus.active;
   late int? _driverId = widget.vehicle?.driverId;
   late DateTime? _purchaseDate = widget.vehicle?.purchaseDate;
@@ -746,7 +770,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
 
   @override
   void dispose() {
-    for (final c in [_name, _reg, _model, _price, _target, _note, _chassis, _engine, _color, _year, _capacity]) {
+    for (final c in [_name, _reg, _model, _price, _target, _note, _chassis, _engine, _color, _year, _capacity, _conversion]) {
       c.dispose();
     }
     super.dispose();
@@ -759,7 +783,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     if (widget.vehicle == null && !await requireVehicleSlot(context, context.read<AppState>().vehicles.length)) return;
     if (!mounted) return;
     final app = context.read<AppState>();
-    final s = context.s;
+    final s = S.read(context);
     final v = Vehicle(
       chassisNo: _t(_chassis),
       engineNo: _t(_engine),
@@ -767,6 +791,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       year: parseAmount(_year.text)?.round(),
       fuel: _fuel,
       capacity: _t(_capacity),
+      conversionCost: _fuel == FuelType.cng ? parseAmount(_conversion.text) : null,
       id: widget.vehicle?.id,
       name: _name.text,
       type: _type,
@@ -794,7 +819,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   }
 
   Future<void> _delete() async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.confirmDelete, body: s.deleteVehicleWarn)) return;
     if (!mounted) return;
     await context.read<AppState>().mutate((r) => r.deleteVehicle(widget.vehicle!.id!));
@@ -811,7 +836,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.vehicle == null ? s.addVehicle : s.editVehicle),
+        title: Text(widget.vehicle == null ? (app.personal ? s.addCar : s.addVehicle) : s.editVehicle),
         actions: [
           if (widget.vehicle != null) IconButton(onPressed: _delete, icon: Icon(Icons.delete_outline_rounded, color: p.expense)),
           const SizedBox(width: 8),
@@ -874,13 +899,15 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                 controller: _model,
                 decoration: InputDecoration(labelText: s.model, hintText: s.modelHint, prefixIcon: const Icon(Icons.directions_car_outlined)),
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _target,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: s.dailyTarget, helperText: s.dailyTargetHelp, prefixText: '৳ ', prefixIcon: const Icon(Icons.flag_outlined)),
-                validator: (v) => v != null && v.trim().isNotEmpty && parseAmount(v) == null ? s.invalidNumber : null,
-              ),
+              if (!app.personal) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _target,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: s.dailyTarget, helperText: s.dailyTargetHelp, prefixText: '৳ ', prefixIcon: const Icon(Icons.flag_outlined)),
+                  validator: (v) => v != null && v.trim().isNotEmpty && parseAmount(v) == null ? s.invalidNumber : null,
+                ),
+              ],
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(
@@ -907,7 +934,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                 child: Theme(
                   data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
-                    initiallyExpanded: [_chassis, _engine, _color, _year, _capacity].any((c) => c.text.isNotEmpty) || _fuel != null,
+                    initiallyExpanded: [_chassis, _engine, _color, _year, _capacity, _conversion].any((c) => c.text.isNotEmpty) || _fuel != null,
                     leading: const Icon(Icons.fact_check_outlined),
                     title: Text(s.moreDetails, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
                     childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -945,26 +972,37 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                             ChoiceTag(label: fuel.label(s), selected: _fuel == fuel, onTap: () => setState(() => _fuel = _fuel == fuel ? null : fuel)),
                         ]),
                       ),
+                      if (_fuel == FuelType.cng) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _conversion,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(labelText: s.conversionCost, helperText: s.conversionCostHelp, prefixText: '৳ '),
+                          validator: (v) => v != null && v.trim().isNotEmpty && parseAmount(v) == null ? s.invalidNumber : null,
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              _label(s.assignedDriver),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                ChoiceTag(label: s.none, selected: _driverId == null, onTap: () => setState(() => _driverId = null)),
-                for (final d in app.drivers.where((d) => d.active || d.id == _driverId))
-                  ChoiceTag(label: d.name, icon: Icons.person_rounded, selected: _driverId == d.id, onTap: () => setState(() => _driverId = d.id)),
-                ChoiceTag(
-                  label: s.addDriver,
-                  icon: Icons.add_rounded,
-                  selected: false,
-                  onTap: () async {
-                    final id = await openNewDriver(context);
-                    if (id != null) setState(() => _driverId = id);
-                  },
-                ),
-              ]),
+              if (!app.personal) ...[
+                const SizedBox(height: 20),
+                _label(s.assignedDriver),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  ChoiceTag(label: s.none, selected: _driverId == null, onTap: () => setState(() => _driverId = null)),
+                  for (final d in app.drivers.where((d) => d.active || d.id == _driverId))
+                    ChoiceTag(label: d.name, icon: Icons.person_rounded, selected: _driverId == d.id, onTap: () => setState(() => _driverId = d.id)),
+                  ChoiceTag(
+                    label: s.addDriver,
+                    icon: Icons.add_rounded,
+                    selected: false,
+                    onTap: () async {
+                      final id = await openNewDriver(context);
+                      if (id != null) setState(() => _driverId = id);
+                    },
+                  ),
+                ]),
+              ],
               const SizedBox(height: 20),
               _label(s.status),
               PillToggle<VehicleStatus>(values: VehicleStatus.values, selected: _status, label: (v) => v.label(s), onChanged: (v) => setState(() => _status = v)),

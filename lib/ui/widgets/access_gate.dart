@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/format.dart';
+import '../../core/l10n.dart';
 import '../../core/l10n_auth.dart';
 import '../../core/theme.dart';
 import '../../services/auth.dart';
@@ -20,14 +21,14 @@ Future<bool> requireFeature(BuildContext context, String feature) async {
 Future<bool> requireVehicleSlot(BuildContext context, int currentCount) async {
   final access = context.read<AuthService>().access;
   if (access.canAddVehicle(currentCount)) return true;
-  await showLockedSheet(context, message: context.s.vehicleLimit(access.maxVehicles!));
+  await showLockedSheet(context, message: S.read(context).vehicleLimit(access.maxVehicles!));
   return false;
 }
 
 Future<bool> requireDriverSlot(BuildContext context, int currentCount) async {
   final access = context.read<AuthService>().access;
   if (access.canAddDriver(currentCount)) return true;
-  await showLockedSheet(context, message: context.s.driverLimit(access.maxDrivers!));
+  await showLockedSheet(context, message: S.read(context).driverLimit(access.maxDrivers!));
   return false;
 }
 

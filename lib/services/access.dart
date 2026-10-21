@@ -12,6 +12,7 @@ abstract final class Feature {
   static const reports = 'reports';
   static const backupDrive = 'backup_drive';
   static const backupFile = 'backup_file';
+  static const personalMode = 'personal_mode';
 }
 
 /// What the signed-in user may use. Packages are never shown in the app —

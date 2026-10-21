@@ -649,7 +649,7 @@ class _PartFormScreenState extends State<PartFormScreen> {
   }
 
   Future<void> _save() async {
-    final s = context.s;
+    final s = S.read(context);
     if (_vehicleId == null) {
       toast(context, s.noVehicleYet, icon: Icons.info_outline_rounded);
       return;
@@ -686,7 +686,7 @@ class _PartFormScreenState extends State<PartFormScreen> {
   }
 
   Future<void> _delete() async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.deletePart, body: s.deletePartBody)) return;
     if (!mounted) return;
     final nav = Navigator.of(context);

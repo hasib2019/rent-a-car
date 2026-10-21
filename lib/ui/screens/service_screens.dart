@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
@@ -169,7 +170,7 @@ class VisitDetailScreen extends StatelessWidget {
   final int visitId;
 
   Future<void> _delete(BuildContext context) async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.deleteVisit, body: s.deleteVisitBody)) return;
     if (!context.mounted) return;
     final nav = Navigator.of(context);
@@ -552,7 +553,7 @@ class _VisitFormScreenState extends State<VisitFormScreen> {
   }
 
   Future<void> _save() async {
-    final s = context.s;
+    final s = S.read(context);
     if (_vehicleId == null) {
       toast(context, s.noVehicleYet, icon: Icons.info_outline_rounded);
       return;
@@ -846,7 +847,7 @@ class _PartSheetState extends State<_PartSheet> {
   }
 
   void _done() {
-    final s = context.s;
+    final s = S.read(context);
     if (_type == PartType.other && _detail.text.trim().isEmpty) {
       setState(() => _error = s.partName);
       return;

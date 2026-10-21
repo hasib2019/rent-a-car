@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
@@ -98,7 +99,7 @@ class _DailyCollectionScreenState extends State<DailyCollectionScreen> {
     final rows = _rows;
     if (rows == null || _saving) return;
     final app = context.read<AppState>();
-    final s = context.s;
+    final s = S.read(context);
     final entries = <Income>[];
     final remove = <int>[];
     for (final r in rows) {

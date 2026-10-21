@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../core/env.dart';
@@ -55,10 +56,13 @@ class ApiClient {
     try {
       res = await http.Response.fromStream(await _http.send(request).timeout(Env.apiTimeout));
     } on TimeoutException {
+      if (kDebugMode) debugPrint('[API] $method ${request.url} → timeout');
       throw ApiException(0, 'timeout');
     } catch (_) {
+      if (kDebugMode) debugPrint('[API] $method ${request.url} → offline');
       throw ApiException(0, 'offline');
     }
+    if (kDebugMode) debugPrint('[API] $method ${request.url} → ${res.statusCode}');
 
     Map<String, dynamic> json = const {};
     if (res.body.isNotEmpty) {

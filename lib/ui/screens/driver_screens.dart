@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/format.dart';
+import '../../core/l10n.dart';
+import '../../core/l10n_personal.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
@@ -296,11 +298,12 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
       text: widget.driver == null || widget.driver!.openingDue == 0 ? '' : widget.driver!.openingDue.round().toString());
   late DateTime? _join = widget.driver?.joinDate ?? DateUtils.dateOnly(DateTime.now());
   late DateTime? _licenseExpiry = widget.driver?.licenseExpiry;
+  late final _salary = TextEditingController(text: widget.driver == null || widget.driver!.monthlySalary == 0 ? '' : widget.driver!.monthlySalary.round().toString());
   late bool _active = widget.driver?.active ?? true;
 
   @override
   void dispose() {
-    for (final c in [_name, _phone, _nid, _license, _address, _due]) {
+    for (final c in [_name, _phone, _nid, _license, _address, _due, _salary]) {
       c.dispose();
     }
     super.dispose();
@@ -312,7 +315,7 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
     if (!_form.currentState!.validate()) return;
     if (widget.driver == null && !await requireDriverSlot(context, context.read<AppState>().drivers.length)) return;
     if (!mounted) return;
-    final s = context.s;
+    final s = S.read(context);
     final d = Driver(
       id: widget.driver?.id,
       name: _name.text,
@@ -325,6 +328,7 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
       active: _active,
       note: widget.driver?.note,
       licenseExpiry: _licenseExpiry,
+      monthlySalary: parseAmount(_salary.text) ?? 0,
     );
     final id = await context.read<AppState>().mutate((r) => r.saveDriver(d));
     if (!mounted) return;
@@ -333,7 +337,7 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
   }
 
   Future<void> _delete() async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.confirmDelete, body: s.deleteDriverWarn)) return;
     if (!mounted) return;
     await context.read<AppState>().mutate((r) => r.deleteDriver(widget.driver!.id!));
@@ -345,6 +349,8 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
   Widget build(BuildContext context) {
     final s = context.s;
     final p = context.pal;
+    // A personal car's driver is paid a salary rather than handing over a daily collection.
+    final personal = context.watch<AppState>().personal;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.driver == null ? s.addDriver : s.editDriver),
@@ -376,6 +382,15 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
                 decoration: InputDecoration(labelText: s.driverName, prefixIcon: const Icon(Icons.person_outline_rounded)),
                 validator: (v) => (v == null || v.trim().isEmpty) ? s.required : null,
               ),
+              if (personal) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _salary,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: s.monthlySalary, prefixText: '৳ ', prefixIcon: const Icon(Icons.payments_outlined)),
+                  validator: (v) => v != null && v.trim().isNotEmpty && parseAmount(v) == null ? s.invalidNumber : null,
+                ),
+              ],
               const SizedBox(height: 12),
               TextFormField(
                 controller: _phone,
@@ -400,7 +415,7 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
                   child: TextFormField(
                     controller: _due,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: s.openingDue, prefixText: '৳ ', prefixIcon: const Icon(Icons.account_balance_wallet_outlined)),
+                    decoration: InputDecoration(labelText: personal ? s.openingSalaryDue : s.openingDue, prefixText: '৳ ', prefixIcon: const Icon(Icons.account_balance_wallet_outlined)),
                     validator: (v) => v != null && v.trim().isNotEmpty && parseAmount(v) == null ? s.invalidNumber : null,
                   ),
                 ),

@@ -5,16 +5,16 @@ import 'package:file_picker/file_picker.dart';
 /// Save / open the raw SQLite backup through the platform file dialog
 /// (Downloads on web, Storage Access Framework on Android, Files on iOS).
 class LocalBackup {
-  static String fileName() {
+  static String fileName({bool personal = false}) {
     final n = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
-    return 'garikhata-${n.year}${two(n.month)}${two(n.day)}-${two(n.hour)}${two(n.minute)}.db';
+    return 'garikhata${personal ? '-personal' : ''}-${n.year}${two(n.month)}${two(n.day)}-${two(n.hour)}${two(n.minute)}.db';
   }
 
   /// Returns false if the user cancelled.
-  static Future<bool> save(Uint8List bytes) async {
+  static Future<bool> save(Uint8List bytes, {bool personal = false}) async {
     final uri = await FilePicker.saveFile(
-      fileName: fileName(),
+      fileName: fileName(personal: personal),
       bytes: bytes,
       mimeType: 'application/x-sqlite3',
       dialogTitle: 'GariKhata backup',

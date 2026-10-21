@@ -89,6 +89,7 @@ enum ExpenseCategory {
   loading('loading', 'লোড-আনলোড', 'Loading / labour', Icons.inventory_2_rounded, Color(0xFF7C8CF8)),
   papers('papers', 'কাগজপত্র', 'Papers & tax', Icons.description_rounded, Color(0xFFE5B812)),
   salary('salary', 'ড্রাইভার বেতন', 'Driver salary', Icons.badge_rounded, Color(0xFF22C17A)),
+  bonus('bonus', 'বোনাস / বকশিশ', 'Bonus / tip', Icons.card_giftcard_rounded, Color(0xFFEC6FB5)),
   wash('wash', 'ধোয়া-মোছা', 'Wash', Icons.local_car_wash_rounded, Color(0xFF5AC8FA)),
   parking('parking', 'পার্কিং / গ্যারেজ', 'Parking / garage', Icons.local_parking_rounded, Color(0xFF8E7DFF)),
   fine('fine', 'মামলা / জরিমানা', 'Case / fine', Icons.gavel_rounded, Color(0xFFE5484D)),
@@ -112,6 +113,10 @@ enum ExpenseCategory {
       this == mobil || this == servicing || this == parts || this == tyre || this == repair || this == wash;
 
   static List<ExpenseCategory> get maintenance => values.where((c) => c.isMaintenance).toList();
+
+  /// What an owner's own car costs besides fuel, in picker order (no trip
+  /// allowances, commissions or loading labour).
+  static const personalCosts = [servicing, mobil, parts, tyre, repair, wash, parking, toll, papers, fine, salary, bonus, installment, food, road, other];
 
   /// Costs that typically come up on the road during a trip, in picker order.
   static const tripCosts = [fuel, mobil, toll, road, food, allowance, commission, loading, parking, repair, tyre, fine, other];
@@ -146,6 +151,7 @@ enum PayMethod {
   bkash('bkash', 'বিকাশ', 'bKash', Icons.phone_android_rounded),
   nagad('nagad', 'নগদ', 'Nagad', Icons.phone_iphone_rounded),
   bank('bank', 'ব্যাংক', 'Bank', Icons.account_balance_rounded),
+  card('card', 'কার্ড', 'Card', Icons.credit_card_rounded),
   cheque('cheque', 'চেক', 'Cheque', Icons.receipt_rounded);
 
   const PayMethod(this.key, this.bn, this.en, this.icon);
@@ -180,20 +186,28 @@ enum ServiceKind {
 }
 
 enum FuelType {
-  cng('cng', 'সিএনজি', 'CNG'),
-  octane('octane', 'অকটেন', 'Octane'),
-  petrol('petrol', 'পেট্রোল', 'Petrol'),
-  diesel('diesel', 'ডিজেল', 'Diesel'),
-  lpg('lpg', 'এলপিজি', 'LPG'),
-  hybrid('hybrid', 'হাইব্রিড', 'Hybrid'),
-  electric('electric', 'ইলেকট্রিক', 'Electric');
+  cng('cng', 'সিএনজি', 'CNG', 'm³', 'm³'),
+  octane('octane', 'অকটেন', 'Octane', 'লিটার', 'L'),
+  petrol('petrol', 'পেট্রোল', 'Petrol', 'লিটার', 'L'),
+  diesel('diesel', 'ডিজেল', 'Diesel', 'লিটার', 'L'),
+  lpg('lpg', 'এলপিজি', 'LPG', 'লিটার', 'L'),
+  hybrid('hybrid', 'হাইব্রিড', 'Hybrid', 'লিটার', 'L'),
+  electric('electric', 'ইলেকট্রিক', 'Electric', 'kWh', 'kWh');
 
-  const FuelType(this.key, this.bn, this.en);
+  const FuelType(this.key, this.bn, this.en, this.unitBn, this.unitEn);
   final String key;
   final String bn;
   final String en;
 
+  /// What a fill-up is measured in: CNG by the cubic metre, power by the kWh.
+  final String unitBn;
+  final String unitEn;
+
   String label(S s) => s.bn ? bn : en;
+  String unit(S s) => s.bn ? unitBn : unitEn;
+
+  /// Fuels a pump sells, in picker order (a hybrid tanks octane).
+  static const pumpFuels = [octane, petrol, diesel, cng, lpg, electric];
 
   static FuelType? from(String? key) {
     for (final f in FuelType.values) {

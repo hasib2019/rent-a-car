@@ -14,6 +14,7 @@ import 'daily_collection_screen.dart';
 import 'documents_screen.dart';
 import 'driver_screens.dart';
 import 'maintenance_screen.dart';
+import 'mode_screen.dart';
 import 'parties_screen.dart';
 import 'settings_screen.dart';
 import 'trip_screens.dart';
@@ -94,12 +95,15 @@ class HomeScreen extends StatelessWidget {
             ),
           ]),
         ),
-        if (!wide)
+        const ModeSwitchButton(),
+        if (!wide) ...[
+          const SizedBox(width: 8),
           RoundIconButton(
             icon: Icons.tune_rounded,
             tooltip: s.settings,
             onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => const SettingsScreen())),
           ),
+        ],
       ]),
     );
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format.dart';
+import '../../core/l10n_personal.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
@@ -34,6 +35,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
     final f = context.fmt;
     final p = context.pal;
     final app = context.watch<AppState>();
+    // Personal books only hold costs.
+    final filter = app.personal ? _Filter.expense : _filter;
 
     return SafeArea(
       bottom: false,
@@ -43,7 +46,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
             child: Row(children: [
-              Expanded(child: Text(s.ledger, style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800))),
+              Expanded(child: Text(app.personal ? s.costBook : s.ledger, style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800))),
               IconButton(onPressed: () => setState(() => _month = DateTime(_month.year, _month.month - 1)), icon: const Icon(Icons.chevron_left_rounded)),
               Text(f.monthYear(_month), style: const TextStyle(fontWeight: FontWeight.w700)),
               IconButton(
@@ -52,19 +55,20 @@ class _LedgerScreenState extends State<LedgerScreen> {
               ),
             ]),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: PillToggle<_Filter>(
-              values: _Filter.values,
-              selected: _filter,
-              label: (v) => switch (v) {
-                _Filter.all => s.filterAll,
-                _Filter.income => s.filterIncome,
-                _Filter.expense => s.filterExpense,
-              },
-              onChanged: (v) => setState(() => _filter = v),
+          if (!app.personal)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: PillToggle<_Filter>(
+                values: _Filter.values,
+                selected: _filter,
+                label: (v) => switch (v) {
+                  _Filter.all => s.filterAll,
+                  _Filter.income => s.filterIncome,
+                  _Filter.expense => s.filterExpense,
+                },
+                onChanged: (v) => setState(() => _filter = v),
+              ),
             ),
-          ),
           if (app.vehicles.length > 1)
             SizedBox(
               height: 58,
@@ -82,11 +86,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
             ),
           Expanded(
             child: Loader<List<LedgerEntry>>(
-              deps: [_month, _filter, _vehicleId],
+              deps: [_month, filter, _vehicleId],
               load: (r) => r.ledger(
                 period: Period.month(_month),
                 vehicleId: _vehicleId,
-                incomeOnly: switch (_filter) {
+                incomeOnly: switch (filter) {
                   _Filter.all => null,
                   _Filter.income => true,
                   _Filter.expense => false,
@@ -101,13 +105,21 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
                       decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: p.line)),
-                      child: Row(children: [
-                        Expanded(child: _sum(context, s.income, income, p.income)),
-                        Container(width: 1, height: 34, color: p.line),
-                        Expanded(child: _sum(context, s.expense, expense, p.expense)),
-                        Container(width: 1, height: 34, color: p.line),
-                        Expanded(child: _sum(context, s.profit, income - expense, p.ink)),
-                      ]),
+                      child: Row(
+                        children: app.personal
+                            ? [
+                                Expanded(child: _sum(context, s.totalSpend, expense, p.expense)),
+                                Container(width: 1, height: 34, color: p.line),
+                                Expanded(child: _sum(context, s.fuel, entries.where((e) => e.category == 'fuel').fold<double>(0, (a, e) => a + e.amount), p.ink)),
+                              ]
+                            : [
+                                Expanded(child: _sum(context, s.income, income, p.income)),
+                                Container(width: 1, height: 34, color: p.line),
+                                Expanded(child: _sum(context, s.expense, expense, p.expense)),
+                                Container(width: 1, height: 34, color: p.line),
+                                Expanded(child: _sum(context, s.profit, income - expense, p.ink)),
+                              ],
+                      ),
                     ),
                     if (entries.isEmpty)
                       EmptyState(icon: Icons.receipt_long_rounded, title: s.noEntries, body: s.noEntriesBody)

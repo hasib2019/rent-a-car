@@ -2,14 +2,22 @@ import 'package:flutter/foundation.dart';
 
 import '../data/demo_seed.dart';
 import '../data/models.dart';
+import '../data/personal_demo_seed.dart';
 import '../data/repository.dart';
+import '../services/settings.dart';
 
 /// Holds the small, frequently used lists (vehicles, drivers, dues) in memory
 /// and a [revision] counter that screens watch to re-run their queries.
+///
+/// There is one per [AppMode], each on its own database; the active one is
+/// what screens get from the provider, so every screen works in both modes.
 class AppState extends ChangeNotifier {
-  AppState(this.repo);
+  AppState(this.repo, {this.personal = false});
 
   final Repository repo;
+
+  /// The owner's own cars rather than the fleet business.
+  final bool personal;
 
   List<Vehicle> vehicles = [];
   List<Driver> drivers = [];
@@ -63,5 +71,17 @@ class AppState extends ChangeNotifier {
     return out;
   }
 
-  Future<void> loadDemo({required bool bangla}) => mutate((r) => seedDemoData(r, bangla: bangla));
+  Future<void> loadDemo({required bool bangla}) =>
+      mutate((r) => personal ? seedPersonalDemo(r, bangla: bangla) : seedDemoData(r, bangla: bangla));
+}
+
+/// Both books, for the few places that act on all data at once (deleting the
+/// account, the daily Drive backup).
+class AppBooks {
+  const AppBooks({required this.fleet, required this.personal});
+  final AppState fleet;
+  final AppState personal;
+
+  AppState of(AppMode mode) => mode == AppMode.personal ? personal : fleet;
+  List<AppState> get all => [fleet, personal];
 }

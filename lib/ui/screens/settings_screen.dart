@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format.dart';
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../services/settings.dart';
 import '../../state/app_state.dart';
 import '../widgets/common.dart';
 import 'backup_screen.dart';
 import 'documents_screen.dart';
+import 'mode_screen.dart';
 import '../routes.dart';
 import '../../core/l10n_auth.dart';
 import '../../services/access.dart';
@@ -39,6 +41,8 @@ class SettingsScreen extends StatelessWidget {
               child: Text(s.settings, style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
             ),
           const _AccountCard(),
+          const SizedBox(height: 12),
+          const ModeSettingsTile(),
           SectionHeader(s.language),
           PillToggle<bool>(values: const [true, false], selected: settings.isBangla, label: (v) => v ? 'বাংলা' : 'English', onChanged: settings.setBangla),
           SectionHeader(s.appearance),
@@ -120,7 +124,7 @@ class SettingsScreen extends StatelessWidget {
       );
 
   Future<void> _reset(BuildContext context) async {
-    final s = context.s;
+    final s = S.read(context);
     if (!await confirm(context, title: s.resetData, body: s.resetConfirm)) return;
     if (!context.mounted) return;
     await context.read<AppState>().mutate((r) => r.eraseEverything());

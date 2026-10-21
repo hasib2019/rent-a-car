@@ -21,6 +21,7 @@ class Driver {
     this.active = true,
     this.note,
     this.licenseExpiry,
+    this.monthlySalary = 0,
   });
 
   final int? id;
@@ -34,6 +35,10 @@ class Driver {
   final bool active;
   final String? note;
   final DateTime? licenseExpiry;
+
+  /// A personal car's driver: what he earns a month (0 for fleet drivers,
+  /// who hand over a daily collection instead).
+  final double monthlySalary;
 
   /// Days until the driving licence expires (negative when expired).
   int? get licenseDaysLeft => licenseExpiry?.difference(DateUtils.dateOnly(DateTime.now())).inDays;
@@ -58,6 +63,7 @@ class Driver {
         'active': active ? 1 : 0,
         'note': note,
         'license_expiry': licenseExpiry == null ? null : dbDate(licenseExpiry!),
+        'monthly_salary': monthlySalary,
         'created_at': _now(),
       };
 
@@ -73,6 +79,7 @@ class Driver {
         active: (m['active'] as int? ?? 1) == 1,
         note: m['note'] as String?,
         licenseExpiry: m['license_expiry'] == null ? null : parseDbDate(m['license_expiry'] as String),
+        monthlySalary: _d(m['monthly_salary']),
       );
 }
 
@@ -95,6 +102,9 @@ class Vehicle {
     this.year,
     this.fuel,
     this.capacity,
+    this.conversionCost,
+    this.monthlyBudget,
+    this.marketValue,
   });
 
   final int? id;
@@ -119,6 +129,15 @@ class Vehicle {
   /// Seats or load, as the owner writes it ("৪ সিট", "১.৫ টন").
   final String? capacity;
 
+  /// What converting the car to CNG cost, to show when the savings repay it.
+  final double? conversionCost;
+
+  /// What the owner means to spend on the car in a month.
+  final double? monthlyBudget;
+
+  /// What the car would sell for today, if the owner knows; else estimated.
+  final double? marketValue;
+
   bool get isActive => status == VehicleStatus.active;
 
   Map<String, Object?> toMap() => {
@@ -139,6 +158,9 @@ class Vehicle {
         'year': year,
         'fuel': fuel?.key,
         'capacity': capacity,
+        'conversion_cost': conversionCost,
+        'monthly_budget': monthlyBudget,
+        'market_value': marketValue,
         'created_at': _now(),
       };
 
@@ -160,6 +182,9 @@ class Vehicle {
         year: m['year'] as int?,
         fuel: FuelType.from(m['fuel'] as String?),
         capacity: m['capacity'] as String?,
+        conversionCost: _dn(m['conversion_cost']),
+        monthlyBudget: _dn(m['monthly_budget']),
+        marketValue: _dn(m['market_value']),
       );
 }
 
@@ -228,6 +253,12 @@ class Expense {
     this.tripId,
     this.partId,
     this.visitId,
+    this.fullTank = true,
+    this.missed = false,
+    this.unitPrice,
+    this.fuelType,
+    this.payMethod,
+    this.driverId,
   });
 
   final int? id;
@@ -251,6 +282,22 @@ class Expense {
   /// Set when this is the labour bill of a [ServiceVisit].
   final int? visitId;
 
+  /// Fuel only: the tank was filled to the brim. Mileage is measured between
+  /// two full fills; older entries without the flag count as full.
+  final bool fullTank;
+
+  /// Fuel only: a fill-up before this one was never written down, so the
+  /// distance since the last full tank can't be trusted.
+  final bool missed;
+
+  /// Fuel only: price per litre / m³ at the pump.
+  final double? unitPrice;
+  final FuelType? fuelType;
+  final PayMethod? payMethod;
+
+  /// Salary, advance or bonus paid to this (personal) driver.
+  final int? driverId;
+
   Map<String, Object?> toMap() => {
         'id': id,
         'date': dbDate(date),
@@ -264,6 +311,12 @@ class Expense {
         'trip_id': tripId,
         'part_id': partId,
         'visit_id': visitId,
+        'full_tank': fullTank ? 1 : 0,
+        'missed': missed ? 1 : 0,
+        'unit_price': unitPrice,
+        'fuel_type': fuelType?.key,
+        'pay_method': payMethod?.key,
+        'driver_id': driverId,
         'created_at': _now(),
       };
 
@@ -280,11 +333,17 @@ class Expense {
         tripId: m['trip_id'] as int?,
         partId: m['part_id'] as int?,
         visitId: m['visit_id'] as int?,
+        fullTank: (m['full_tank'] as int? ?? 1) == 1,
+        missed: (m['missed'] as int? ?? 0) == 1,
+        unitPrice: _dn(m['unit_price']),
+        fuelType: FuelType.from(m['fuel_type'] as String?),
+        payMethod: m['pay_method'] == null ? null : PayMethod.from(m['pay_method'] as String),
+        driverId: m['driver_id'] as int?,
       );
 }
 
 class Paper {
-  Paper({this.id, required this.vehicleId, required this.type, required this.expiry, this.note, this.docNo, this.provider});
+  Paper({this.id, required this.vehicleId, required this.type, required this.expiry, this.note, this.docNo, this.provider, this.renewalCost});
 
   final int? id;
   final int vehicleId;
@@ -298,6 +357,9 @@ class Paper {
   /// Issuing office or insurance company.
   final String? provider;
 
+  /// What renewing it costs (fee, premium) — feeds the cost forecast.
+  final double? renewalCost;
+
   int get daysLeft => expiry.difference(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)).inDays;
 
   Map<String, Object?> toMap() => {
@@ -308,6 +370,7 @@ class Paper {
         'note': note,
         'doc_no': docNo,
         'provider': provider,
+        'renewal_cost': renewalCost,
       };
 
   factory Paper.fromMap(Map<String, Object?> m) => Paper(
@@ -318,6 +381,7 @@ class Paper {
         note: m['note'] as String?,
         docNo: m['doc_no'] as String?,
         provider: m['provider'] as String?,
+        renewalCost: _dn(m['renewal_cost']),
       );
 }
 
